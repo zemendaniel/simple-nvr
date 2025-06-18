@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block main %}
+<div class="d-flex justify-content-center">
+    <img src="{{ url_for('video_feed') }}"
+         alt="Live Stream"
+         class="rounded shadow"
+         style="max-height: 90%; max-width: 90%; object-fit: contain;">
+</div>
+{% endblock %}
