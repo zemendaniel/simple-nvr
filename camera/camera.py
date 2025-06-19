@@ -94,7 +94,7 @@ class Camera:
                 newest = time.strftime('%H:%M:%S', time.localtime(self.frame_buffer[-1][0]))
                 print(f"[DEBUG] Frame timestamps: oldest={oldest}, newest={newest}")
 
-            time.sleep(0.1)  # approx 30 FPS
+            time.sleep(0.1)  # approx 10 FPS
 
     def get_frame(self):
         # with self.lock:
@@ -129,7 +129,7 @@ class Camera:
 
         duration = end_time - start_time
         if duration <= 0:
-            duration = 1 / 30  # fallback to 30 FPS if duration zero or negative
+            duration = 1 / 10  # fallback to 10 FPS if duration zero or negative
 
         fps = len(frames) / duration
         print(f"[DEBUG] Saving clip at {fps:.2f} FPS")
