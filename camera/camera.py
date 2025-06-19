@@ -146,10 +146,10 @@ class Camera:
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         folder = "clips"
-        filename = f"{folder}/motion_clip_{timestamp}.avi"
+        filename = f"{folder}/motion_clip_{timestamp}.mp4"
 
         height, width = frames[0][1].shape[:2]
-        out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+        out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
         for _, frame in frames:
             out.write(frame)
