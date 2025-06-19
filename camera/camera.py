@@ -1,16 +1,26 @@
+import shutil
+
 import cv2
 import threading
 import time
 from collections import deque
 import os
+import subprocess
 
 
 class Camera:
-    def __init__(self, url=0):
+    def __init__(self, url):
+        Camera.kill_video_processes(url)
+
         self.cap = cv2.VideoCapture(url)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.cap.set(cv2.CAP_PROP_FPS, 10)
+
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual exposure mode
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)  # Try -6, -5, or -4
+        self.cap.set(cv2.CAP_PROP_GAIN, 50)
+        self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 200)
 
         self.lock = threading.Lock()
         self.prev_gray = None
@@ -146,3 +156,32 @@ class Camera:
 
         out.release()
         print(f"[DEBUG] Saved clip as {filename}")
+
+    @staticmethod
+    def kill_video_processes(url):
+        if not shutil.which("fuser"):
+            print("'fuser' command not found. Install it using your package manager (e.g., apt install psmisc).")
+            return
+
+        try:
+            result = subprocess.run(
+                ["fuser", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            if result.returncode != 0 or not result.stdout.strip():
+                print(f"No process is using {url}.")
+                return
+
+            pids = result.stdout.strip().split()
+            for pid in pids:
+                try:
+                    subprocess.run(["kill", "-9", pid], check=True)
+                    print(f"Killed process using {url}: PID {pid}")
+                except subprocess.CalledProcessError:
+                    print(f"Failed to kill PID {pid}")
+
+        except Exception as e:
+            print(f"Exception while trying to kill processes using {url}: {e}")
