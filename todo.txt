@@ -4,3 +4,5 @@ view clips
 auth
 setup.py .env
 snapshot download
+video download
+2 way audio
