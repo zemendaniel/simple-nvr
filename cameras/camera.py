@@ -61,37 +61,38 @@ class Camera:
                 time.sleep(self.fps_sleep)
                 continue
 
-            # frame = cv2.resize(frame, (640, 360))
-            if current_time - self.startup_time > 10:
-                self.motion_detected = self._detect_motion(frame)
-            else:
-                self.motion_detected = False
-
-            # Save recent frames for pre-motion buffer
-            with self.lock:
-                self.frame_buffer.append(frame.copy())
-
             # Update latest JPEG-encoded frame
             ret, jpeg = cv2.imencode('.jpg', frame)
             if ret:
                 with self.lock:
                     self.latest_frame = jpeg.tobytes()
 
-            if self.motion_detected:
-                print("[INFO] Motion detected.")
-                if not self.is_recording:
-                    self.recording_start_timestamp = time.strftime("%H:%M:%S")
-                    self._start_recording(frame)
-                self.post_motion_end_time = current_time + 5
 
-            if self.is_recording:
-                with self.recording_lock:
-                    if self.video_writer:
-                        self.video_writer.write(frame)
-                if current_time >= self.post_motion_end_time:
-                    self._stop_recording()
-                    if self.notifications_enabled:
-                        send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.")
+            if self.sensitivity != 0:
+                if current_time - self.startup_time > 10:
+                    self.motion_detected = self._detect_motion(frame)
+                else:
+                    self.motion_detected = False
+
+                # Save recent frames for pre-motion buffer
+                with self.lock:
+                    self.frame_buffer.append(frame.copy())
+
+                if self.motion_detected:
+                    print("[INFO] Motion detected.")
+                    if not self.is_recording:
+                        self.recording_start_timestamp = time.strftime("%H:%M:%S")
+                        self._start_recording(frame)
+                    self.post_motion_end_time = current_time + 5
+
+                if self.is_recording:
+                    with self.recording_lock:
+                        if self.video_writer:
+                            self.video_writer.write(frame)
+                    if current_time >= self.post_motion_end_time:
+                        self._stop_recording()
+                        if self.notifications_enabled:
+                            send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.")
 
             time.sleep(self.fps_sleep)
 

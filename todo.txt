@@ -1,8 +1,12 @@
-dockerize
+site settings stuff
+    root folder
+    discord token there
+
+subfolders
+video player carusel, save last video id to the user
+
 prune old clips
 view clips
-auth
-setup.py .env
 snapshot download
 video download
 2 way audio

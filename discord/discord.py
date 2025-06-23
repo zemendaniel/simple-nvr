@@ -4,12 +4,16 @@ import requests
 
 
 def send_message(content):
+    webhook = os.environ.get('DISCORD')
+    if not webhook:
+        return
+    
     data = {
         "content": content
     }
 
     try:
-        response = requests.post(os.environ.get('DISCORD'), json=data)
+        response = requests.post(webhook, json=data)
         if response.status_code == 204:
             print("[INFO] Discord message sent.")
         else:

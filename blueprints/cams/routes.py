@@ -77,6 +77,7 @@ def edit(cam_id):
 def delete(cam_id):
     cam = CamRepository.find_by_id(cam_id) or abort(404)
     cam.delete()
+    CameraManager.get_instance().reload_cameras()
     flash("Camera deleted successfully", 'sucess')
     return redirect(url_for("cams.settings"))
 
