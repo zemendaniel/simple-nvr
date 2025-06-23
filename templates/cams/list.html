@@ -2,7 +2,7 @@
 
 {% block main %}
     {% for cam in cams %}
-        <div class="d-flex justify-content-center {% if not loop.last %}mb2{% endif %}">
+        <div class="d-flex justify-content-center mb-3">
         <img src="{{ url_for('cams.video_feed', cam_id=cam.id) }}"
                  alt="Live Stream"
                  class="rounded shadow"

@@ -5,9 +5,18 @@ from persistence import db
 
 
 class CameraManager:
+    _instance = None
+
     def __init__(self):
+        if CameraManager._instance is not None:
+            raise Exception("CameraManager instance already exists. Use get_instance().")
         self.cameras = []
         self.lock = Lock()
+        CameraManager._instance = self
+
+    @classmethod
+    def get_instance(cls):
+        return cls._instance
 
     def start_all_from_db(self):
         with db.Session() as session:
@@ -16,8 +25,10 @@ class CameraManager:
         with self.lock:
             for config in camera_configs:
                 print(f"[INFO] Starting camera: {config.name}")
-                self.cameras.append(Camera(config.id, config.url, config.fps, config.width, config.height,
-                                            config.sensitivity, config.folder, config.name))
+                self.cameras.append(Camera(
+                    config.id, config.url, config.fps, config.width, config.height,
+                    config.sensitivity, config.folder, config.name
+                ))
 
     def get_camera(self, camera_id):
         with self.lock:

@@ -11,6 +11,8 @@ class Camera:
     def __init__(self, cam_id, url, fps, width, height, sensitivity, folder, name):
         if "/dev/video" in url:
             Camera.kill_video_processes(url)
+            subprocess.run(["v4l2-ctl", "-d", url, "-c", "auto_exposure=3"])
+
         self.url = url
         self.fps = fps
         self.sensitivity = sensitivity
@@ -20,7 +22,7 @@ class Camera:
         self.height = height
         self.name = name
 
-        self.fps_sleep = 1000 / self.fps / 1000
+        self.fps_sleep = 1 / self.fps
         self.cap = cv2.VideoCapture(url)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)

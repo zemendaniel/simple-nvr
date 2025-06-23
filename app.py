@@ -13,11 +13,8 @@ import os
 
 
 # camera = Camera(1, "/dev/video0", 5, 1280, 720, 1000, "clips")
-camera_manager = CameraManager()
 csrf = CSRFProtect()
 minify = Minify(html=True, js=True, cssless=True)
-
-atexit.register(camera_manager.stop_all)
 
 
 def create_app(config_class=Config):
@@ -27,6 +24,8 @@ def create_app(config_class=Config):
     security.init_app(app)
     csrf.init_app(app)
     minify.init_app(app)
+    camera_manager = CameraManager()
+    atexit.register(camera_manager.stop_all)
 
     if os.path.exists("INSTALLED"):
         camera_manager.start_all_from_db()
@@ -39,4 +38,4 @@ def create_app(config_class=Config):
 
 
 if __name__ == '__main__':
-    create_app().run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    create_app().run(host="0.0.0.0", port=5001, debug=False, threaded=True)

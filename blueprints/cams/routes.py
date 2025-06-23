@@ -4,14 +4,13 @@ from security.decorators import is_fully_authenticated, is_admin
 from .forms import CamForm
 from persistence.model.cam import Cam
 from persistence.repository.cam import CamRepository
+from cameras.manager import CameraManager
 
 
 @bp.route('/video/<int:cam_id>')
 @is_fully_authenticated
 def video_feed(cam_id):
-    from app import camera_manager
-
-    cam = camera_manager.get_camera(cam_id) or abort(404)
+    cam = CameraManager.get_instance().get_camera(cam_id) or abort(404)
     return Response(
         stream_with_context(cam.generate_frames()),
         mimetype='multipart/x-mixed-replace; boundary=frame'
@@ -21,9 +20,7 @@ def video_feed(cam_id):
 @bp.route('/snapshot/<int:cam_id>')
 @is_fully_authenticated
 def snapshot(cam_id):
-    from app import camera_manager
-
-    cam = camera_manager.get_camera(cam_id) or abort(404)
+    cam = CameraManager.get_instance().get_camera(cam_id) or abort(404)
     frame = cam.get_frame()
     if frame:
         return Response(response=frame, mimetype='image/jpeg')
@@ -34,9 +31,7 @@ def snapshot(cam_id):
 @bp.route('/')
 @is_fully_authenticated
 def list_all():
-    from app import camera_manager
-
-    cams = camera_manager.cameras
+    cams = CameraManager.get_instance().cameras
     return render_template("cams/list.html", cams=cams)
 
 
@@ -50,8 +45,7 @@ def create():
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        from app import camera_manager
-        camera_manager.reload_cameras()
+        CameraManager.get_instance().reload_cameras()
         flash("Camera added successfully", "success")
         return redirect(url_for('pages.home'))
 
@@ -68,8 +62,7 @@ def edit(cam_id):
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        from app import camera_manager
-        camera_manager.reload_cameras()
+        CameraManager.get_instance().reload_cameras()
         flash("Camera modified successfully", "success")
         return redirect(url_for('pages.home'))
 
