@@ -1,45 +1,42 @@
-from flask import Flask, Response, stream_with_context, render_template
-from camera.camera import Camera
+from flask import Flask
 import atexit
-import time
-
-app = Flask(__name__)
-camera = Camera("/dev/video0")
-
-# Ensure the camera is released on app exit
-atexit.register(camera.release)
-
-
-@app.route('/video')
-def video_feed():
-    """
-    Video streaming route.
-    """
-    return Response(
-        stream_with_context(camera.generate_frames()),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
+from cameras.manager import CameraManager
+from config import Config
+import persistence
+import security
+from flask_wtf.csrf import CSRFProtect
+from flask_minify import Minify
+import blueprints.cams
+import blueprints.pages
+import blueprints.security
+import os
 
 
-@app.route('/snapshot')
-def snapshot():
-    """
-    Snapshot route to get a single frame.
-    """
-    frame = camera.get_frame()
-    if frame:
-        return Response(response=frame, mimetype='image/jpeg')
-    else:
-        return Response("Camera frame not available.", status=404)
+# camera = Camera(1, "/dev/video0", 5, 1280, 720, 1000, "clips")
+camera_manager = CameraManager()
+csrf = CSRFProtect()
+minify = Minify(html=True, js=True, cssless=True)
+
+atexit.register(camera_manager.stop_all)
 
 
-@app.route('/')
-def index():
-    """
-        Home page with live video and snapshot viewer.
-        """
-    return render_template("index.html")
+def create_app(config_class=Config):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+    persistence.init_app(app)
+    security.init_app(app)
+    csrf.init_app(app)
+    minify.init_app(app)
+
+    if os.path.exists("INSTALLED"):
+        camera_manager.start_all_from_db()
+
+    app.register_blueprint(blueprints.cams.bp, url_prefix='/cams')
+    app.register_blueprint(blueprints.pages.bp, url_prefix='/')
+    app.register_blueprint(blueprints.security.bp, url_prefix='/')
+
+    return app
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    create_app().run(host="0.0.0.0", port=5000, debug=False, threaded=True)
