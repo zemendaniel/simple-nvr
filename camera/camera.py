@@ -58,7 +58,7 @@ class Camera:
                 diff = cv2.absdiff(self.prev_gray, gray)
                 thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)[1]
                 motion_level = cv2.countNonZero(thresh)
-                self.motion_detected = motion_level > 5000  # adjust this if needed
+                self.motion_detected = motion_level > 1000  # adjust this if needed
 
             self.prev_gray = gray
 
