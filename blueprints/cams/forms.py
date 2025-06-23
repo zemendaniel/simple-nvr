@@ -11,7 +11,7 @@ class CamForm(FlaskForm):
     fps = IntegerField('FPS', validators=[DataRequired(), NumberRange(1, 60)])
     width = IntegerField('Width - eg. 1280, 1920', validators=[DataRequired(), NumberRange(1, 2000)])
     height = IntegerField('Height - eg. 720, 1080', validators=[DataRequired(), NumberRange(1, 2000)])
-    sensitivity = IntegerField('Sensitivity - 1: most sensitive, 10000: least sensitive',
+    sensitivity = IntegerField('Sensitivity - 0: disabled, 1: most sensitive, 10000: least sensitive',
                                validators=[DataRequired(), NumberRange(1, 10000)])
     folder = StringField('Folder (make sure permissions are correct) - eg. /mnt/clips, clips', validators=[DataRequired(), length(min=1, max=255)])
     enabled = BooleanField('Enabled', default=True)

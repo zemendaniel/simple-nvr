@@ -47,20 +47,25 @@ class Camera:
         self.recording_lock = threading.Lock()
         self.post_motion_end_time = None
 
+        self.startup_time = time.time()
+
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
 
     def _capture_loop(self):
         while self.running:
+            current_time = time.time()
+
             ret, frame = self.cap.read()
             if not ret:
                 time.sleep(self.fps_sleep)
                 continue
 
             # frame = cv2.resize(frame, (640, 360))
-            self.motion_detected = self._detect_motion(frame)
-
-            current_time = time.time()
+            if current_time - self.startup_time > 10:
+                self.motion_detected = self._detect_motion(frame)
+            else:
+                self.motion_detected = False
 
             # Save recent frames for pre-motion buffer
             with self.lock:
@@ -138,7 +143,7 @@ class Camera:
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
                 else:
-                    time.sleep(0.1)
+                    time.sleep(self.fps_sleep)
         except GeneratorExit:
             print("Video watch stream stopped.")
         finally:

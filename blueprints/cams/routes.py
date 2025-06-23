@@ -1,3 +1,5 @@
+import time
+
 from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash
 from blueprints.cams import bp
 from security.decorators import is_fully_authenticated, is_admin
@@ -47,7 +49,7 @@ def create():
         cam.save()
         CameraManager.get_instance().reload_cameras()
         flash("Camera added successfully", "success")
-        return redirect(url_for('pages.home'))
+        return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", create=True, form=form)
 
@@ -64,7 +66,34 @@ def edit(cam_id):
         cam.save()
         CameraManager.get_instance().reload_cameras()
         flash("Camera modified successfully", "success")
-        return redirect(url_for('pages.home'))
+        return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", form=form, cam=cam)
 
+
+@bp.route('/delete/<int:cam_id>', methods=['POST'])
+@is_fully_authenticated
+@is_admin
+def delete(cam_id):
+    cam = CamRepository.find_by_id(cam_id) or abort(404)
+    cam.delete()
+    flash("Camera deleted successfully", 'sucess')
+    return redirect(url_for("cams.settings"))
+
+
+@bp.route('/settings')
+@is_fully_authenticated
+@is_admin
+def settings():
+    cams = CamRepository.find_all()
+
+    return render_template("cams/settings.html", cams=cams)
+
+
+@bp.route('/reload', methods=['POST'])
+@is_fully_authenticated
+@is_admin
+def reload():
+    CameraManager.get_instance().reload_cameras()
+    flash("Cameras reloaded successfully", 'success')
+    return redirect(url_for('cams.settings'))
