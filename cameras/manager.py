@@ -20,14 +20,14 @@ class CameraManager:
 
     def start_all_from_db(self):
         with db.Session() as session:
-            camera_configs = session.scalars(Cam.select().order_by(Cam.id)).all()
+            camera_configs = session.scalars(Cam.select().where(Cam.enabled == True).order_by(Cam.id)).all()
 
         with self.lock:
             for config in camera_configs:
                 print(f"[INFO] Starting camera: {config.name}")
                 self.cameras.append(Camera(
                     config.id, config.url, config.fps, config.width, config.height,
-                    config.sensitivity, config.folder, config.name
+                    config.sensitivity, config.folder, config.name, config.notifications_enabled
                 ))
 
     def get_camera(self, camera_id):

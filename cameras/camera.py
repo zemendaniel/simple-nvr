@@ -5,10 +5,12 @@ import os
 import subprocess
 import shutil
 from collections import deque
+from discord.discord import send_message
+from datetime import datetime
 
 
 class Camera:
-    def __init__(self, cam_id, url, fps, width, height, sensitivity, folder, name):
+    def __init__(self, cam_id, url, fps, width, height, sensitivity, folder, name, notifications_enabled):
         if "/dev/video" in url:
             Camera.kill_video_processes(url)
             subprocess.run(["v4l2-ctl", "-d", url, "-c", "auto_exposure=3"])
@@ -21,6 +23,7 @@ class Camera:
         self.width = width
         self.height = height
         self.name = name
+        self.notifications_enabled = notifications_enabled
 
         self.fps_sleep = 1 / self.fps
         self.cap = cv2.VideoCapture(url)
@@ -37,6 +40,7 @@ class Camera:
         self.motion_detected = False
         self.buffer_duration = 5
         self.frame_buffer = deque(maxlen=self.fps * 5)  # 5 sec at most
+        self.recording_start_timestamp = None
 
         self.is_recording = False
         self.video_writer = None
@@ -71,6 +75,7 @@ class Camera:
             if self.motion_detected:
                 print("[INFO] Motion detected.")
                 if not self.is_recording:
+                    self.recording_start_timestamp = time.strftime("%H:%M:%S")
                     self._start_recording(frame)
                 self.post_motion_end_time = current_time + 5
 
@@ -80,6 +85,8 @@ class Camera:
                         self.video_writer.write(frame)
                 if current_time >= self.post_motion_end_time:
                     self._stop_recording()
+                    if self.notifications_enabled:
+                        send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.")
 
             time.sleep(self.fps_sleep)
 
@@ -99,8 +106,7 @@ class Camera:
         return motion_level > self.sensitivity
 
     def _start_recording(self, frame):
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        filename = f"{self.folder}/cam_{self.id}_clip{timestamp}.mp4"
+        filename = f"{self.folder}/cam_{self.id}_clip{self.recording_start_timestamp}.mp4"
         height, width = frame.shape[:2]
         self.video_writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
         self.is_recording = True

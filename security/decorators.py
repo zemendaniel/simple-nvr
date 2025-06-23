@@ -1,6 +1,4 @@
 import functools
-import inspect
-
 from flask import redirect, url_for, request, g, abort
 
 

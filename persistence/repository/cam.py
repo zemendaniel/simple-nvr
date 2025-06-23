@@ -14,6 +14,17 @@ class CamRepository:
         return g.session.scalars(statement).all()
 
     @staticmethod
+    def find_all_enabled():
+        statement = (
+            Cam
+            .select()
+            .where(Cam.enabled == True)
+            .order_by(Cam.id)
+        )
+
+        return g.session.scalars(statement).all()
+
+    @staticmethod
     def find_by_id(cam_id: int):
         statement = (
             Cam

@@ -63,7 +63,25 @@
         </div>
 
         <div>
-            <input type="submit" value="Add Camera">
+            {{ form.enabled.label }}<br>
+            {{ form.enabled }}<br>
+            {% for error in form.enabled.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div>
+            {{ form.notifications_enabled.label }}<br>
+            {{ form.notifications_enabled }}<br>
+            {% for error in form.notifications_enabled.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div>
+            <button type="submit">
+                Save (this will reload all cameras)
+            </button>
         </div>
     </form>
 {% endblock %}

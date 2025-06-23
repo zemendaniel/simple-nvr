@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms.fields.simple import StringField
+from wtforms.fields.simple import StringField, BooleanField
 from wtforms.fields.numeric import IntegerField
 from wtforms.validators import DataRequired, length
 from wtforms.validators import NumberRange
@@ -14,3 +14,5 @@ class CamForm(FlaskForm):
     sensitivity = IntegerField('Sensitivity - 1: most sensitive, 10000: least sensitive',
                                validators=[DataRequired(), NumberRange(1, 10000)])
     folder = StringField('Folder (make sure permissions are correct) - eg. /mnt/clips, clips', validators=[DataRequired(), length(min=1, max=255)])
+    enabled = BooleanField('Enabled', default=True)
+    notifications_enabled = BooleanField('Notifications enabled', default=True)
