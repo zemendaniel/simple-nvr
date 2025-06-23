@@ -1,12 +1,27 @@
 {% extends "base.html" %}
 
 {% block main %}
-    {% for cam in cams %}
-        <div class="d-flex justify-content-center mb-3">
-        <img src="{{ url_for('cams.video_feed', cam_id=cam.id) }}"
-                 alt="Live Stream"
-                 class="rounded shadow"
-                 style="max-height: 90%; max-width: 90%; object-fit: contain;">
+    <!-- Camera selection -->
+    <div class="mb-4 text-center">
+        {% for cam in cams %}
+            <a href="{{ url_for('cams.list_all') }}?cam={{ cam.id }}" class="mx-2">
+                {{ cam.name }}
+            </a>
+        {% endfor %}
+    </div>
+
+    {% if selected_cam %}
+        <!-- Stream and title centered -->
+        <div class="text-center mb-3">
+            <h3 class="mb-3">{{ selected_cam.name }}</h3>
+            <div class="d-flex justify-content-center">
+                <img src="{{ url_for('cams.video_feed', cam_id=selected_cam.id) }}"
+                     alt="Live Stream for {{ selected_cam.name }}"
+                     class="rounded shadow"
+                     style="max-height: 80vh; max-width: 100%; object-fit: contain;">
+            </div>
         </div>
-    {% endfor %}
+    {% else %}
+        <p class="text-center mt-4">Select a camera to view the stream.</p>
+    {% endif %}
 {% endblock %}

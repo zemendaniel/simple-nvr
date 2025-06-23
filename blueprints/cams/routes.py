@@ -1,6 +1,6 @@
 import time
 
-from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash
+from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash, request
 from blueprints.cams import bp
 from security.decorators import is_fully_authenticated, is_admin
 from .forms import CamForm
@@ -34,8 +34,13 @@ def snapshot(cam_id):
 @is_fully_authenticated
 def list_all():
     cams = CameraManager.get_instance().cameras
-    return render_template("cams/list.html", cams=cams)
+    cam_id = request.args.get('cam', type=int)
 
+    selected_cam = None
+    if cam_id:
+        selected_cam = next((cam for cam in cams if cam.id == cam_id), None)
+
+    return render_template("cams/list.html", cams=cams, selected_cam=selected_cam)
 
 @bp.route('/create', methods=['GET', 'POST'])
 @is_fully_authenticated

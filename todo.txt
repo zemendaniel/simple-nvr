@@ -2,8 +2,8 @@ site settings stuff
     root folder
     discord token there
 
-subfolders
-video player carusel, save last video id to the user
+subfolders based on id
+save last video id to the user
 
 prune old clips
 view clips
