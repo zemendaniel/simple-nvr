@@ -1,4 +1,3 @@
-prune old clips
-view clips
-snapshot download
+prune old clips: have a setting for keep last x clips for each camera
+view clips: delete button, save perma button, filter by camera, newest first, no filename just timestamp, discord link for video file
 2 way audio

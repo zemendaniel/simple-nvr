@@ -22,6 +22,12 @@
                      id="camera-stream">
             </div>
         </div>
+        <div class="text-center my-2">
+            <button onclick="downloadCurrentImage()" class="btn btn-secondary">
+                Download Snapshot
+            </button>
+        </div>
+
     {% else %}
         <p class="text-center mt-4">Add a camera to view the stream.</p>
     {% endif %}
@@ -34,6 +40,23 @@
                 elem.requestFullscreen();
             }
         });
+
+        function downloadCurrentImage() {
+            const img = document.getElementById("camera-stream");
+
+            // Create an invisible canvas to draw the current frame
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+
+            // Convert canvas to data URL and trigger download
+            const link = document.createElement("a");
+            link.href = canvas.toDataURL("image/jpeg");
+            link.download = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
+            link.click();
+        }
     </script>
 
 {% endblock %}

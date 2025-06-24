@@ -37,7 +37,7 @@ def install():
         session.add(config)
         session.commit()
 
-    subfolders = ['cams', 'tmp']
+    subfolders = ['cams', 'saved']
     for sub in subfolders:
         sub_path = os.path.join(root_folder, sub)
         os.makedirs(sub_path, exist_ok=True)

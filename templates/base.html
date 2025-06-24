@@ -20,6 +20,9 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'cams.list_all' %}active{% endif %}" href="{{ url_for('cams.list_all') }}"><i class="fa-solid fa-video"></i> Stream</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'clips.list_all' %}active{% endif %}" href="{{ url_for('clips.list_all') }}"><i class="fa-solid fa-file-video"></i> Clips</a>
+                    </li>
                     {% if is_admin() %}
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'cams.settings' %}active{% endif %}" href="{{ url_for('cams.settings') }}"><i class="fa-solid fa-gear"></i> Camera settings</a>
