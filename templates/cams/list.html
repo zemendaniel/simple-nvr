@@ -18,10 +18,22 @@
                 <img src="{{ url_for('cams.video_feed', cam_id=selected_cam.id) }}"
                      alt="Live Stream for {{ selected_cam.name }}"
                      class="rounded shadow"
-                     style="max-height: 80vh; max-width: 100%; object-fit: contain;">
+                     style="max-height: 80vh; max-width: 100%; object-fit: contain; cursor: pointer"
+                     id="camera-stream">
             </div>
         </div>
     {% else %}
         <p class="text-center mt-4">Add a camera to view the stream.</p>
     {% endif %}
+
+    <script>
+        document.getElementById("camera-stream").addEventListener("click", function () {
+            const elem = this;
+
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            }
+        });
+    </script>
+
 {% endblock %}

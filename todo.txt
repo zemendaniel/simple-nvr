@@ -1,5 +1,4 @@
 prune old clips
 view clips
 snapshot download
-video download
 2 way audio
