@@ -1,10 +1,7 @@
-import os
-from persistence.model.app_config import AppConfig
 import requests
 
 
-def send_message(content):
-    webhook = AppConfig.get().discord_webhook
+def send_message(content, webhook):
     if not webhook:
         return
     

@@ -11,7 +11,7 @@ def home():
     return redirect(url_for('cams.list_all'))
 
 
-@bp.route('/settings')
+@bp.route('/settings', methods=['GET', 'POST'])
 @is_fully_authenticated
 @is_admin
 def settings():

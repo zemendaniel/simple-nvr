@@ -6,10 +6,12 @@ import subprocess
 import shutil
 from collections import deque
 from discord.discord import send_message
+from persistence import db
+from persistence.model.app_config import AppConfig
 
 
 class Camera:
-    def __init__(self, cam_id, url, fps, width, height, sensitivity, folder, name, notifications_enabled):
+    def __init__(self, cam_id, url, fps, width, height, sensitivity, name, notifications_enabled):
         if "/dev/video" in url:
             Camera.kill_video_processes(url)
             subprocess.run(["v4l2-ctl", "-d", url, "-c", "auto_exposure=3"])
@@ -18,7 +20,6 @@ class Camera:
         self.fps = fps
         self.sensitivity = sensitivity
         self.id = cam_id
-        self.folder = folder
         self.width = width
         self.height = height
         self.name = name
@@ -48,7 +49,8 @@ class Camera:
 
         self.startup_time = time.time()
 
-        self.app_conf = AppConfig.get()
+        with db.Session() as s:
+            self.app_conf = s.get(AppConfig, 1)
 
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
@@ -92,7 +94,8 @@ class Camera:
                     if current_time >= self.post_motion_end_time:
                         self._stop_recording()
                         if self.notifications_enabled and self.app_conf.notifications_enabled and self.app_conf.discord_webhook:
-                            send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.")
+                            send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.",
+                                         self.app_conf.discord_webhook)
 
             time.sleep(self.fps_sleep)
 

@@ -29,8 +29,9 @@ def install():
         id=1,
         root_folder=default_root
     )
-    g.session.add(config)
-    g.session.commit()
+    with db.Session() as session:
+        session.add(config)
+        session.commit()
 
     with open("INSTALLED", "w"):
         pass

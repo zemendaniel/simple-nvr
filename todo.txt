@@ -1,11 +1,3 @@
-site settings stuff
-    root folder
-    discord token there
-    notifications global
-
-subfolders based on id
-save last video id to the user
-
 prune old clips
 view clips
 snapshot download

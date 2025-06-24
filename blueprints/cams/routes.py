@@ -1,6 +1,6 @@
 import time
 
-from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash, request
+from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash, request, g
 from blueprints.cams import bp
 from security.decorators import is_fully_authenticated, is_admin
 from .forms import CamForm
@@ -33,12 +33,18 @@ def snapshot(cam_id):
 @bp.route('/')
 @is_fully_authenticated
 def list_all():
-    cams = CameraManager.get_instance().cameras
+    cam_manager = CameraManager.get_instance()
+    cams = cam_manager.cameras
     cam_id = request.args.get('cam', type=int)
 
-    selected_cam = None
     if cam_id:
-        selected_cam = next((cam for cam in cams if cam.id == cam_id), None)
+        selected_cam = next((cam for cam in cams if cam.id == cam_id), None) or abort(404)
+        g.user.last_viewed_cam = selected_cam.id
+        g.user.save()
+    else:
+        selected_cam = cam_manager.get_camera(g.user.last_viewed_cam)
+        if not selected_cam and cams:
+            selected_cam = cams[0]
 
     return render_template("cams/list.html", cams=cams, selected_cam=selected_cam)
 
@@ -54,7 +60,7 @@ def create():
         form.populate_obj(cam)
         cam.save()
         # CameraManager.get_instance().reload_cameras()
-        flash("Camera added successfully", "success")
+        flash("Camera added successfully|You need to reload the cameras to apply the changes.", "success")
         return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", create=True, form=form)
@@ -71,7 +77,7 @@ def edit(cam_id):
         form.populate_obj(cam)
         cam.save()
         # CameraManager.get_instance().reload_cameras()
-        flash("Camera modified successfully", "success")
+        flash("Camera modified successfully|You need to reload the cameras to apply the changes.", "success")
         return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", form=form, cam=cam)
@@ -84,7 +90,7 @@ def delete(cam_id):
     cam = CamRepository.find_by_id(cam_id) or abort(404)
     cam.delete()
     # CameraManager.get_instance().reload_cameras()
-    flash("Camera deleted successfully", 'sucess')
+    flash("Camera deleted successfully|You need to reload the cameras to apply the changes.", 'sucess')
     return redirect(url_for("cams.settings"))
 
 
