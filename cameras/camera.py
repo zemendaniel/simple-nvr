@@ -8,6 +8,7 @@ from collections import deque
 from discord.discord import send_message
 from persistence import db
 from persistence.model.app_config import AppConfig
+import os
 
 
 class Camera:
@@ -43,9 +44,9 @@ class Camera:
         self.recording_start_timestamp = None
 
         self.is_recording = False
-        self.video_writer = None
         self.recording_lock = threading.Lock()
         self.post_motion_end_time = None
+        self.ffmpeg_process = None
 
         self.startup_time = time.time()
 
@@ -89,8 +90,11 @@ class Camera:
 
                 if self.is_recording:
                     with self.recording_lock:
-                        if self.video_writer:
-                            self.video_writer.write(frame)
+                        if self.ffmpeg_process and self.ffmpeg_process.stdin:
+                            try:
+                                self.ffmpeg_process.stdin.write(frame.tobytes())
+                            except BrokenPipeError:
+                                print("[ERROR] FFmpeg pipe closed unexpectedly.")
                     if current_time >= self.post_motion_end_time:
                         self._stop_recording()
                         if self.notifications_enabled and self.app_conf.notifications_enabled and self.app_conf.discord_webhook:
@@ -115,26 +119,49 @@ class Camera:
         return motion_level > self.sensitivity
 
     def _start_recording(self, frame):
-        filename = f"{self.app_conf.root_folder}/cams/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
+        recording_filename = f"{self.app_conf.root_folder}/cams/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
         height, width = frame.shape[:2]
-        self.video_writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
+
+        # Start FFmpeg process
+        self.ffmpeg_process = subprocess.Popen([
+            'ffmpeg',
+            '-y',  # Overwrite output file if it exists
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-pix_fmt', 'bgr24',
+            '-s', f'{width}x{height}',
+            '-r', str(self.fps),
+            '-i', '-',  # Input from stdin
+            '-an',  # No audio
+            '-vcodec', 'libx264',
+            '-preset', 'veryfast',
+            '-tune', 'zerolatency',
+            '-pix_fmt', 'yuv420p',
+            recording_filename
+        ], stdin=subprocess.PIPE)
+
         self.is_recording = True
 
-        # Write pre-motion buffer to file
+        # Write pre-buffered frames
         with self.lock:
-            for frame in self.frame_buffer:
-                self.video_writer.write(frame)
+            for buffered_frame in self.frame_buffer:
+                self.ffmpeg_process.stdin.write(buffered_frame.tobytes())
 
-        print(f"[INFO] Recording started: {filename}")
+        print(f"[INFO] Recording started: {recording_filename}")
 
     def _stop_recording(self):
         with self.recording_lock:
-            if self.video_writer:
-                self.video_writer.release()
-                self.video_writer = None
+            if self.ffmpeg_process:
+                try:
+                    self.ffmpeg_process.stdin.close()
+                    self.ffmpeg_process.wait()
+                except Exception as e:
+                    print(f"[ERROR] Error closing FFmpeg: {e}")
+                self.ffmpeg_process = None
+
         self.is_recording = False
         print("[INFO] Recording stopped.")
-
+    
     def get_frame(self):
         with self.lock:
             return self.latest_frame
@@ -159,9 +186,6 @@ class Camera:
         with self.lock:
             if self.cap.isOpened():
                 self.cap.release()
-        with self.recording_lock:
-            if self.video_writer:
-                self.video_writer.release()
 
     @staticmethod
     def kill_video_processes(url):
