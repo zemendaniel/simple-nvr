@@ -83,7 +83,7 @@ class Camera:
                 if self.motion_detected:
                     print("[INFO] Motion detected.")
                     if not self.is_recording:
-                        self.recording_start_timestamp = time.strftime("%H:%M:%S")
+                        self.recording_start_timestamp = time.strftime("%H_%M_%S")
                         self._start_recording(frame)
                     self.post_motion_end_time = current_time + 5
 

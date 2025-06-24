@@ -9,6 +9,7 @@ from flask_minify import Minify
 import blueprints.cams
 import blueprints.pages
 import blueprints.security
+import blueprints.clips
 import os
 
 
@@ -33,6 +34,7 @@ def create_app(config_class=Config):
     app.register_blueprint(blueprints.cams.bp, url_prefix='/cams')
     app.register_blueprint(blueprints.pages.bp, url_prefix='/')
     app.register_blueprint(blueprints.security.bp, url_prefix='/')
+    app.register_blueprint(blueprints.clips.bp, url_prefix='/clips')
 
     return app
 
