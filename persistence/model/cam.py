@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from persistence.model.app_config import AppConfig
 import os
 import shutil
+from flask import g
 
 
 class Cam(Model):
@@ -19,13 +20,15 @@ class Cam(Model):
     notifications_enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
 
     def save(self):
-        CamRepository.save(self)
-        os.makedirs(f"{AppConfig.get().root_folder}/{self.id}", exist_ok=True)
+        g.session.add(self)
+        g.session.commit()
+        os.makedirs(f"{AppConfig.get().root_folder}/cams/{self.id}", exist_ok=True)
 
     def delete(self):
-        CamRepository.delete(self)
-        if os.path.exists(f"{AppConfig.get().root_folder}/{self.id}"):
-            shutil.rmtree(f"{AppConfig.get().root_folder}/{self.id}")
+        g.session.delete(self)
+        g.session.commit()
+        if os.path.exists(f"{AppConfig.get().root_folder}/cams/{self.id}"):
+            shutil.rmtree(f"{AppConfig.get().root_folder}/cams/{self.id}")
 
 
 from persistence.repository.cam import CamRepository

@@ -18,20 +18,29 @@ def init_app(app):
 
 
 def install():
+    if os.path.exists("INSTALLED"):
+        print("This application is already installed. Delete the 'INSTALLED' file to reinstall.")
+        return
+
     db.drop_all()
     db.create_all()
     reset_admin()
 
-    default_root = 'clips'
-    os.makedirs(default_root, exist_ok=True)
+    root_folder = input('Your clips root folder:\n')
+    os.makedirs(root_folder, exist_ok=True)
 
     config = AppConfig(
         id=1,
-        root_folder=default_root
+        root_folder=root_folder
     )
     with db.Session() as session:
         session.add(config)
         session.commit()
+
+    subfolders = ['cams', 'tmp']
+    for sub in subfolders:
+        sub_path = os.path.join(root_folder, sub)
+        os.makedirs(sub_path, exist_ok=True)
 
     with open("INSTALLED", "w"):
         pass

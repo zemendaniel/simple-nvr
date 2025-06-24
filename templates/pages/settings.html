@@ -6,14 +6,6 @@
         {{ form.hidden_tag() }}
 
         <div>
-            {{ form.root_folder.label }}<br>
-            {{ form.root_folder(size=64) }}<br>
-            {% for error in form.root_folder.errors %}
-                <span style="color: red;">{{ error }}</span><br>
-            {% endfor %}
-        </div>
-
-        <div>
             {{ form.discord_webhook.label }}<br>
             {{ form.discord_webhook(size=64) }}<br>
             {% for error in form.discord_webhook.errors %}

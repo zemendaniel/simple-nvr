@@ -34,15 +34,5 @@ class CamRepository:
 
         return g.session.scalar(statement)
 
-    @staticmethod
-    def save(cam):
-        g.session.add(cam)
-        g.session.commit()
-
-    @staticmethod
-    def delete(cam) -> None:
-        g.session.delete(cam)
-        g.session.commit()
-
 
 from persistence.model.cam import Cam

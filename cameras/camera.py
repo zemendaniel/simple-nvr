@@ -115,7 +115,7 @@ class Camera:
         return motion_level > self.sensitivity
 
     def _start_recording(self, frame):
-        filename = f"{self.app_conf.root_folder}/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
+        filename = f"{self.app_conf.root_folder}/cams/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
         height, width = frame.shape[:2]
         self.video_writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
         self.is_recording = True
