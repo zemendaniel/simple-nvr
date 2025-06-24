@@ -1,12 +1,15 @@
 from alchemical import Model
 from sqlalchemy import Integer, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
+from persistence.model.app_config import AppConfig
+import os
+import shutil
 
 
 class Cam(Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(32), nullable=False)
-    folder: Mapped[str] = mapped_column(String(255), nullable=False)
+    # folder: Mapped[str] = mapped_column(String(255), nullable=False)
     url: Mapped[str] = mapped_column(String(255), nullable=False)
     fps: Mapped[int] = mapped_column(Integer(), nullable=False)
     width: Mapped[int] = mapped_column(Integer(), nullable=False)
@@ -17,10 +20,12 @@ class Cam(Model):
 
     def save(self):
         CamRepository.save(self)
-        return self
+        os.makedirs(f"{AppConfig.get().root_folder}/{self.id}", exist_ok=True)
 
     def delete(self):
         CamRepository.delete(self)
+        if os.path.exists(f"{AppConfig.get().root_folder}/{self.id}"):
+            shutil.rmtree(f"{AppConfig.get().root_folder}/{self.id}")
 
 
 from persistence.repository.cam import CamRepository

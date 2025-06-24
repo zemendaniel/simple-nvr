@@ -1,12 +1,11 @@
+import secrets
 import cv2
 import threading
 import time
-import os
 import subprocess
 import shutil
 from collections import deque
 from discord.discord import send_message
-from datetime import datetime
 
 
 class Camera:
@@ -49,6 +48,8 @@ class Camera:
 
         self.startup_time = time.time()
 
+        self.app_conf = AppConfig.get()
+
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
 
@@ -66,7 +67,6 @@ class Camera:
             if ret:
                 with self.lock:
                     self.latest_frame = jpeg.tobytes()
-
 
             if self.sensitivity != 0:
                 if current_time - self.startup_time > 10:
@@ -91,7 +91,7 @@ class Camera:
                             self.video_writer.write(frame)
                     if current_time >= self.post_motion_end_time:
                         self._stop_recording()
-                        if self.notifications_enabled:
+                        if self.notifications_enabled and self.app_conf.notifications_enabled and self.app_conf.discord_webhook:
                             send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.")
 
             time.sleep(self.fps_sleep)
@@ -112,7 +112,7 @@ class Camera:
         return motion_level > self.sensitivity
 
     def _start_recording(self, frame):
-        filename = f"{self.folder}/cam_{self.id}_clip{self.recording_start_timestamp}.mp4"
+        filename = f"{self.app_conf.root_folder}/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
         height, width = frame.shape[:2]
         self.video_writer = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
         self.is_recording = True

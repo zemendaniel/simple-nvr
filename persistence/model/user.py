@@ -9,6 +9,7 @@ class User(Model):
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     password: Mapped[str] = mapped_column(String(180), nullable=True)
     role: Mapped[str] = mapped_column(String(64), nullable=False)
+    last_viewed_cam: Mapped[int] = mapped_column(Integer, nullable=True)
 
     def save(self):
         UserRepository.save(self)

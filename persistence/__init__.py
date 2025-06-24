@@ -1,3 +1,5 @@
+import os
+
 from werkzeug.security import generate_password_hash
 import click
 from alchemical.flask import Alchemical
@@ -19,6 +21,17 @@ def install():
     db.drop_all()
     db.create_all()
     reset_admin()
+
+    default_root = 'clips'
+    os.makedirs(default_root, exist_ok=True)
+
+    config = AppConfig(
+        id=1,
+        root_folder=default_root
+    )
+    g.session.add(config)
+    g.session.commit()
+
     with open("INSTALLED", "w"):
         pass
 
@@ -65,3 +78,4 @@ def __on_teardown_appcontext(e):
 
 
 from persistence.model.user import User
+from persistence.model.app_config import AppConfig

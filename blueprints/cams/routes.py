@@ -42,6 +42,7 @@ def list_all():
 
     return render_template("cams/list.html", cams=cams, selected_cam=selected_cam)
 
+
 @bp.route('/create', methods=['GET', 'POST'])
 @is_fully_authenticated
 @is_admin
@@ -52,7 +53,7 @@ def create():
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        CameraManager.get_instance().reload_cameras()
+        # CameraManager.get_instance().reload_cameras()
         flash("Camera added successfully", "success")
         return redirect(url_for('cams.settings'))
 
@@ -69,7 +70,7 @@ def edit(cam_id):
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        CameraManager.get_instance().reload_cameras()
+        # CameraManager.get_instance().reload_cameras()
         flash("Camera modified successfully", "success")
         return redirect(url_for('cams.settings'))
 
@@ -82,7 +83,7 @@ def edit(cam_id):
 def delete(cam_id):
     cam = CamRepository.find_by_id(cam_id) or abort(404)
     cam.delete()
-    CameraManager.get_instance().reload_cameras()
+    # CameraManager.get_instance().reload_cameras()
     flash("Camera deleted successfully", 'sucess')
     return redirect(url_for("cams.settings"))
 
