@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block main %}
+    <h1>Clips</h1>
+    {% for clip in clips %}
+        <div class="mb-3">
+            <h3>{{ clip }}</h3>
+            <video width="640" height="360" controls preload="metadata">
+                <source src="{{ url_for('clips.play', filename=clip) }}" type="video/mp4"/>
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    {% endfor %}
+{% endblock %}

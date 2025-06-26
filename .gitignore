@@ -1,7 +1,7 @@
 venv
 .idea
 __pycache__
-clips
+/clips
 .env
 database.db
 INSTALLED
