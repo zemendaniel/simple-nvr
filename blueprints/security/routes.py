@@ -17,7 +17,7 @@ def login():
 
         if user is not None and user.check_password(form.password.data):
             session['user_id'] = user.id
-            session.permanent = True
+            session.savednent = True
             flash('Sign In successful.', 'success')
             if request.args.get('redirect') is not None and urlsplit(request.args.get('redirect')).netloc == '':
                 return redirect(request.args.get('redirect'))

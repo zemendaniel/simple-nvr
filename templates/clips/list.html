@@ -1,13 +1,61 @@
 {% extends "base.html" %}
+
 {% block main %}
-    <h1>Clips</h1>
-    {% for clip in clips %}
-        <div class="mb-3">
-            <h3>{{ clip }}</h3>
-            <video width="640" height="360" controls preload="metadata">
-                <source src="{{ url_for('clips.play', filename=clip) }}" type="video/mp4"/>
-                Your browser does not support the video tag.
-            </video>
-        </div>
-    {% endfor %}
+<h1>Clips</h1>
+
+<form method="get" class="mb-4 text-center" id="search-form">
+    <input type="hidden" name="search" value="1">
+
+    <label class="mx-2">
+        <input type="checkbox" name="saved"
+            {% if request.args.get('saved') %}checked{% endif %}>
+        Saved Videos
+    </label>
+
+    <label class="mx-2">
+        From:
+    <input type="datetime-local" name="from_datetime" value="{{ request.args.get('from_datetime', '') }}">
+    </label>
+
+    <label class="mx-2">
+        To:
+    <input type="datetime-local" name="to_datetime" value="{{ request.args.get('to_datetime', '') }}">
+    </label>
+
+    <button type="submit" class="btn btn-primary mx-2">Filter</button>
+    <button type="button" class="btn btn-secondary mx-2" onclick="clearFilters()">Reset</button>
+</form>
+    <div class="mb-4 text-center">
+        {% for cam in cams %}
+            <a href="{{ url_for('clips.list_all') }}?cam={{ cam.id }}" class="mx-2">
+                {{ cam.name }}
+            </a>
+        {% endfor %}
+    </div>
+
+    {% if clips %}
+        {% for clip in clips %}
+            <div class="mb-4">
+                <p class="text-muted">{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                <video width="640" height="360" controls preload="metadata">
+                <source src="{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}" type="video/mp4" />
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-center mt-4">There are no clips.</p>
+    {% endif %}
+
+<script>
+function clearFilters() {
+  const form = document.getElementById('search-form');
+  form.reset();
+
+  // Also manually clear datetime values (in case browser retains them)
+  form.querySelector('[name="from_datetime"]').value = '';
+  form.querySelector('[name="to_datetime"]').value = '';
+  form.querySelector('[name="saved"]').checked = false;
+}
+</script>
 {% endblock %}

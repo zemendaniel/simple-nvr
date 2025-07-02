@@ -1,6 +1,8 @@
+import re
+from datetime import datetime
 from io import BytesIO
-
-from flask import redirect, url_for, flash, render_template, send_file, current_app, send_from_directory
+from persistence.repository.cam import CamRepository
+from flask import redirect, url_for, flash, render_template, send_file, g, abort, request, Response
 from blueprints.clips import bp
 from security.decorators import is_admin, is_fully_authenticated
 from persistence.model.app_config import AppConfig
@@ -10,19 +12,106 @@ import os
 @bp.route('/')
 @is_fully_authenticated
 def list_all():
-    clips = [f for f in os.listdir('clips/cams/1') if f.endswith('.mp4')]
-    return render_template('clips/list.html', clips=clips)
+    cams = CamRepository.find_all()
+    saved = request.args.get('saved')
+    cam_id = None
+    if cams:
+        cam_id = request.args.get('cam', type=int)
+        if cam_id:
+            if not CamRepository.find_by_id(cam_id):
+                abort(404)
+            g.user.last_viewed_cam = cam_id
+            g.user.save()
+        else:
+            last_viewed = g.user.last_viewed_cam
+            if CamRepository.find_by_id(last_viewed):
+                cam_id = g.user.last_viewed_cam
+            else:
+                cam_id = cams[0].id
+        
+        if saved:
+            clip_dir = f'{AppConfig.get().root_folder}/saved/{cam_id}'
+        else:
+            clip_dir = f'{AppConfig.get().root_folder}/cams/{cam_id}'
+
+        clips = []
+        for f in os.listdir(clip_dir):
+            if f.endswith('.mp4'):
+                path = os.path.join(clip_dir, f)
+                clips.append({
+                    'name': f,
+                    'modified': datetime.fromtimestamp(os.path.getmtime(path))
+                })
+
+        clips.sort(key=lambda x: x['modified'], reverse=True)
+
+        if request.args.get('search'):
+            from_datetime_str = request.args.get('from_datetime')
+            to_datetime_str = request.args.get('to_datetime')
+
+            try:
+                if from_datetime_str:
+                    from_datetime = datetime.strptime(from_datetime_str, '%Y-%m-%dT%H:%M')
+                    clips = [c for c in clips if c['modified'] >= from_datetime]
+                if to_datetime_str:
+                    to_datetime = datetime.strptime(to_datetime_str, '%Y-%m-%dT%H:%M')
+                    clips = [c for c in clips if c['modified'] <= to_datetime]
+            except ValueError:
+                pass  # ignore invalid formats
+
+    else:
+        clips = []
+    
+    return render_template('clips/list.html', clips=clips, cams=cams, saved=saved, cam_id=cam_id)
 
 
 @bp.route('/play/<filename>')
 @is_fully_authenticated
 def play(filename):
-    file_path = f"clips/cams/1/{filename}"
+    saved = request.args.get('saved', default=None)  # e.g. "true" or None
+    cam_id = request.args.get('cam_id')
+    if cam_id is None:
+        return "Missing camera ID", 400
+
+    # Build the base directory based on saved or live
+    if saved:
+        base_dir = f"clips/saved/{cam_id}"
+    else:
+        base_dir = f"clips/cams/{cam_id}"
+
+    # Construct full absolute file path safely
+    safe_base = os.path.abspath(base_dir)
+    file_path = os.path.abspath(os.path.join(safe_base, filename))
+
+    # Prevent directory traversal attack
+    if not file_path.startswith(safe_base):
+        return "Forbidden", 403
 
     if not os.path.exists(file_path):
         return "File not found", 404
 
-    return send_file(file_path,
-                     mimetype='video/mp4',
-                     as_attachment=False,
-                     download_name=filename)
+    # Now handle range requests as before (streaming support)
+    range_header = request.headers.get('Range', None)
+    if not range_header:
+        return Response(open(file_path, 'rb'), mimetype='video/mp4')
+
+    size = os.path.getsize(file_path)
+    byte1, byte2 = 0, size - 1
+    match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+    if match:
+        byte1 = int(match.group(1))
+        if match.group(2):
+            byte2 = int(match.group(2))
+
+    length = byte2 - byte1 + 1
+
+    with open(file_path, 'rb') as f:
+        f.seek(byte1)
+        data = f.read(length)
+
+    rv = Response(data, 206, mimetype='video/mp4', direct_passthrough=True)
+    rv.headers.add('Content-Range', f'bytes {byte1}-{byte2}/{size}')
+    rv.headers.add('Accept-Ranges', 'bytes')
+    rv.headers.add('Content-Length', str(length))
+    rv.headers.add('Content-Type', 'video/mp4')
+    return rv

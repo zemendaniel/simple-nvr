@@ -44,6 +44,7 @@ def install():
 
     with open("INSTALLED", "w"):
         pass
+    click.echo('Application installation successful.')
 
 
 def reset_admin():
@@ -64,7 +65,6 @@ def reset_admin():
 @click.command('install')
 def __install_command():
     install()
-    click.echo('Application installation successful.')
 
 
 @click.command('reset-admin')

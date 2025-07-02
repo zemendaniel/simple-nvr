@@ -23,12 +23,16 @@ class Cam(Model):
         g.session.add(self)
         g.session.commit()
         os.makedirs(f"{AppConfig.get().root_folder}/cams/{self.id}", exist_ok=True)
+        os.makedirs(f"{AppConfig.get().root_folder}/saved/{self.id}", exist_ok=True)
 
     def delete(self):
         g.session.delete(self)
         g.session.commit()
         if os.path.exists(f"{AppConfig.get().root_folder}/cams/{self.id}"):
             shutil.rmtree(f"{AppConfig.get().root_folder}/cams/{self.id}")
+            
+        if os.path.exists(f"{AppConfig.get().root_folder}/saved/{self.id}"):
+            shutil.rmtree(f"{AppConfig.get().root_folder}/saved/{self.id}")
 
 
 from persistence.repository.cam import CamRepository
