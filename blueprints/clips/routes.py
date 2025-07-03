@@ -116,73 +116,60 @@ def play(filename):
         return rv
 
 
-@bp.route('/delete', methods=['POST'])
+@bp.route('/action', methods=['POST'])
 @is_fully_authenticated
 @is_admin
-def delete():
-    saved = request.args.get('saved', default=None)  # "true" or None
+def action():
     cam_id = request.args.get('cam_id')
     if cam_id is None:
         return "Missing camera ID", 400
-
-    if saved:
-        base_dir = f"{AppConfig.get().root_folder}/saved/{cam_id}"
-    else:
-        base_dir = f"{AppConfig.get().root_folder}/cams/{cam_id}"
-
-    safe_base = os.path.abspath(base_dir)
-
-    selected = request.form.getlist('selected_clips')
-    if not selected:
-        flash("No clips selected for deletion.", "warning")
-        return redirect(url_for('clips.list_all'))
-
-    for filename in selected:
-        try:
-            file_path = os.path.abspath(os.path.join(safe_base, filename))
-            if not os.path.exists(file_path):
-                abort(404)
-            if not file_path.startswith(safe_base):
-                abort(403)
-
-            os.remove(file_path)
-
-        except Exception as e:
-            flash(f"Failed to delete {filename}: {str(e)}", "danger")
-
-    flash(f"Deleted {len(selected)} clip(s).", "success")
-    return redirect(url_for('clips.list_all'))
-
-
-@bp.route('/save', methods=['POST'])
-@is_fully_authenticated
-@is_admin
-def save():
-    cam_id = request.args.get('cam_id')
-    if cam_id is None:
-        return "Missing camera ID", 400
+    saved = request.args.get('saved')
 
     base_dir = f"{AppConfig.get().root_folder}/cams/{cam_id}"
     safe_base = os.path.abspath(base_dir)
+    saved_dir = os.path.abspath(f"{AppConfig.get().root_folder}/saved/{cam_id}")
+    safe_saved = os.path.abspath(saved_dir)
 
     selected = request.form.getlist('selected_clips')
     if not selected:
-        flash("No clips selected for saving.", "warning")
+        flash("No clips selected.", "warning")
         return redirect(url_for('clips.list_all'))
 
-    for filename in selected:
-        try:
-            file_path = os.path.abspath(os.path.join(safe_base, filename))
-            if not os.path.exists(file_path):
-                abort(404)
-            if not file_path.startswith(safe_base):
-                abort(403)
+    action = request.form.get('action')
 
-            dest_path = f'{AppConfig.get().root_foler}/saved/{cam_id}/{filename}'
-            shutil.move(file_path, dest_path)
+    if action == 'delete':
+        for filename in selected:
+            try:
+                if saved:
+                    file_path = os.path.abspath(os.path.join(safe_saved, filename))
+                    if not file_path.startswith(safe_saved):
+                        abort(403)
 
-        except Exception as e:
-            flash(f"Failed to delete {filename}: {str(e)}", "danger")
+                else:
+                    file_path = os.path.abspath(os.path.join(safe_base, filename))
+                    if not file_path.startswith(safe_base):
+                        abort(403)
 
-    flash(f"Deleted {len(selected)} clip(s).", "success")
-    return redirect(url_for('clips.list_all'))
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                flash(f"Failed to delete {filename}: {str(e)}", "danger")
+        flash(f"Deleted {len(selected)} clip(s).", "success")
+
+    elif action == 'save':
+        for filename in selected:
+            try:
+                file_path = os.path.abspath(os.path.join(safe_base, filename))
+                if not file_path.startswith(safe_base):
+                    abort(403)
+                if os.path.exists(file_path):
+                    dest_path = os.path.join(saved_dir, filename)
+                    shutil.move(file_path, dest_path)
+            except Exception as e:
+                flash(f"Failed to save {filename}: {str(e)}", "danger")
+        flash(f"Saved {len(selected)} clip(s).", "success")
+
+    else:
+        flash("Invalid action.", "danger")
+
+    return redirect(url_for('clips.list_all', cam=cam_id, **request.args.to_dict()))

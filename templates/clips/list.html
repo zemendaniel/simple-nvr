@@ -48,7 +48,7 @@
 {% if clips %}
 <div id="timeline" class="mb-4 text-center">
     <p>Click a timestamp to load video:</p>
-    <form id="delete-form" method="post" action="{{ url_for('clips.delete') }}?saved={{ saved if saved }}&cam_id={{ cam_id }}">
+    <form id="clips-action-form" method="post" action="{{ url_for('clips.action') }}?saved={{ saved if saved }}&cam_id={{ cam_id }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         {% for clip in clips %}
@@ -66,7 +66,10 @@
         {% endfor %}
 
         <div style="margin-top: 20px;">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete selected clips?');">Delete Selected</button>
+            <button type="submit" name="action" value="delete" class="btn btn-danger" onclick="return confirm('Delete selected clips?');">Delete Selected</button>
+            {% if not saved %}
+                <button type="submit" name="action" value="save" class="btn btn-success ms-2" onclick="return confirm('Save selected clips?');">Save Selected</button>
+            {% endif %}
         </div>
     </form>
 </div>
@@ -89,6 +92,7 @@ function clearFilters() {
   form.querySelector('[name="from_datetime"]').value = '';
   form.querySelector('[name="to_datetime"]').value = '';
   form.querySelector('[name="saved"]').checked = false;
+  form.submit();
 }
 
 function selectVideo(time, src, button) {
