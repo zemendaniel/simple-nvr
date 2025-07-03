@@ -46,16 +46,30 @@
 </div>
 
 {% if clips %}
-    <div id="timeline" class="mb-4 text-center">
-        <p>Click a timestamp to load video:</p>
+<div id="timeline" class="mb-4 text-center">
+    <p>Click a timestamp to load video:</p>
+    <form id="delete-form" method="post" action="{{ url_for('clips.delete') }}?saved={{ saved if saved }}&cam_id={{ cam_id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         {% for clip in clips %}
-        <button
-            class="btn btn-link clip-time"
-            onclick="selectVideo('{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}', '{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}', this)">
-            {{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}
-        </button>
+        <div style="display: inline-block; margin: 0 10px; text-align: center;">
+            <input type="checkbox" name="selected_clips" value="{{ clip.name }}" id="clip-{{ loop.index }}">
+            <label for="clip-{{ loop.index }}">
+                <button
+                    type="button"
+                    class="btn btn-link clip-time"
+                    onclick="selectVideo('{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}', '{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}', this)">
+                    {{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}
+                </button>
+            </label>
+        </div>
         {% endfor %}
-    </div>
+
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete selected clips?');">Delete Selected</button>
+        </div>
+    </form>
+</div>
 
     <div id="video-container" class="text-center"></div>
 
@@ -113,6 +127,7 @@ function selectVideo(time, src, button) {
 
       // Scroll to video
       video.scrollIntoView({ behavior: 'smooth' });
+      video.play();
 
 }
 

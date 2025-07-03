@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from io import BytesIO
+import shutil
 from persistence.repository.cam import CamRepository
 from flask import redirect, url_for, flash, render_template, send_file, g, abort, request, Response
 from blueprints.clips import bp
@@ -74,9 +74,9 @@ def play(filename):
         return "Missing camera ID", 400
 
     if saved:
-        base_dir = f"clips/saved/{cam_id}"
+        base_dir = f"{AppConfig.get().root_folder}/saved/{cam_id}"
     else:
-        base_dir = f"clips/cams/{cam_id}"
+        base_dir = f"{AppConfig.get().root_folder}/cams/{cam_id}"
 
     safe_base = os.path.abspath(base_dir)
     file_path = os.path.abspath(os.path.join(safe_base, filename))
@@ -114,3 +114,75 @@ def play(filename):
             rv.headers.add('Accept-Ranges', 'bytes')
             rv.headers.add('Content-Length', str(length))
         return rv
+
+
+@bp.route('/delete', methods=['POST'])
+@is_fully_authenticated
+@is_admin
+def delete():
+    saved = request.args.get('saved', default=None)  # "true" or None
+    cam_id = request.args.get('cam_id')
+    if cam_id is None:
+        return "Missing camera ID", 400
+
+    if saved:
+        base_dir = f"{AppConfig.get().root_folder}/saved/{cam_id}"
+    else:
+        base_dir = f"{AppConfig.get().root_folder}/cams/{cam_id}"
+
+    safe_base = os.path.abspath(base_dir)
+
+    selected = request.form.getlist('selected_clips')
+    if not selected:
+        flash("No clips selected for deletion.", "warning")
+        return redirect(url_for('clips.list_all'))
+
+    for filename in selected:
+        try:
+            file_path = os.path.abspath(os.path.join(safe_base, filename))
+            if not os.path.exists(file_path):
+                abort(404)
+            if not file_path.startswith(safe_base):
+                abort(403)
+
+            os.remove(file_path)
+
+        except Exception as e:
+            flash(f"Failed to delete {filename}: {str(e)}", "danger")
+
+    flash(f"Deleted {len(selected)} clip(s).", "success")
+    return redirect(url_for('clips.list_all'))
+
+
+@bp.route('/save', methods=['POST'])
+@is_fully_authenticated
+@is_admin
+def save():
+    cam_id = request.args.get('cam_id')
+    if cam_id is None:
+        return "Missing camera ID", 400
+
+    base_dir = f"{AppConfig.get().root_folder}/cams/{cam_id}"
+    safe_base = os.path.abspath(base_dir)
+
+    selected = request.form.getlist('selected_clips')
+    if not selected:
+        flash("No clips selected for saving.", "warning")
+        return redirect(url_for('clips.list_all'))
+
+    for filename in selected:
+        try:
+            file_path = os.path.abspath(os.path.join(safe_base, filename))
+            if not os.path.exists(file_path):
+                abort(404)
+            if not file_path.startswith(safe_base):
+                abort(403)
+
+            dest_path = f'{AppConfig.get().root_foler}/saved/{cam_id}/{filename}'
+            shutil.move(file_path, dest_path)
+
+        except Exception as e:
+            flash(f"Failed to delete {filename}: {str(e)}", "danger")
+
+    flash(f"Deleted {len(selected)} clip(s).", "success")
+    return redirect(url_for('clips.list_all'))
