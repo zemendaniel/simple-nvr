@@ -1,3 +1,2 @@
-prune old clips: have a setting for keep last x clips for each camera
 view clips: delete button, save button, discord link for video file
 2 way audio

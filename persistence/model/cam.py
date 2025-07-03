@@ -18,6 +18,8 @@ class Cam(Model):
     sensitivity: Mapped[int] = mapped_column(Integer(), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
     notifications_enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+    detection_enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
+    retain_clips: Mapped[int] = mapped_column(Integer(), nullable=False)
 
     def save(self):
         g.session.add(self)

@@ -27,7 +27,8 @@ class CameraManager:
                 print(f"[INFO] Starting camera: {config.name}")
                 self.cameras.append(Camera(
                     config.id, config.url, config.fps, config.width, config.height,
-                    config.sensitivity, config.name, config.notifications_enabled
+                    config.sensitivity, config.name, config.notifications_enabled, config.detection_enabled,
+                    config.retain_clips
                 ))
 
     def get_camera(self, camera_id):

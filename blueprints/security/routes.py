@@ -3,6 +3,7 @@ from persistence.repository.user import UserRepository
 from flask import g, redirect, url_for, session, flash, request, render_template
 from blueprints.security import bp
 from .forms import LoginForm
+from security.decorators import is_fully_authenticated
 
 
 @bp.route('/login', methods=('GET', 'POST'))
@@ -30,3 +31,11 @@ def login():
             flash("Incorrect password.", 'error')
 
     return render_template('security/login.html', form=form)
+
+
+@bp.route('/logout', methods=['POST'])
+@is_fully_authenticated
+def logout():
+    session.clear()
+    flash('Sign Out successful.', 'success')
+    return redirect(url_for('pages.home'))

@@ -21,6 +21,8 @@
                 <li><strong>Sensitivity:</strong> {{ cam.sensitivity }}</li>
                 <li><strong>Enabled:</strong> {{ "Yes" if cam.enabled else "No" }}</li>
                 <li><strong>Notifications Enabled:</strong> {{ "Yes" if cam.notifications_enabled else "No" }}</li>
+                <li><strong>Detection Enabled:</strong> {{ "Yes" if cam.detection_enabled else "No" }}</li>
+                <li><strong>Clip retention amount:</strong> {{ cam.retain_clips }}</li>
             </ul>
 
             {% if cam.enabled %}

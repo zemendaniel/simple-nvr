@@ -1,0 +1,9 @@
+.simple-alert {
+    min-width: 250px;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.simple-alert.fade-out {
+    opacity: 0;
+}

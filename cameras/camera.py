@@ -1,4 +1,6 @@
 import secrets
+from datetime import datetime
+
 import cv2
 import threading
 import time
@@ -12,7 +14,8 @@ import os
 
 
 class Camera:
-    def __init__(self, cam_id, url, fps, width, height, sensitivity, name, notifications_enabled):
+    def __init__(self, cam_id, url, fps, width, height, sensitivity, name, notifications_enabled, detection_enabled,
+                 retain_clips):
         if "/dev/video" in url:
             Camera.kill_video_processes(url)
             subprocess.run(["v4l2-ctl", "-d", url, "-c", "auto_exposure=3"])
@@ -25,6 +28,8 @@ class Camera:
         self.height = height
         self.name = name
         self.notifications_enabled = notifications_enabled
+        self.detection_enabled = detection_enabled
+        self.retain_clips = retain_clips
 
         self.fps_sleep = 1 / self.fps
         self.cap = cv2.VideoCapture(url)
@@ -71,7 +76,7 @@ class Camera:
                 with self.lock:
                     self.latest_frame = jpeg.tobytes()
 
-            if self.sensitivity != 0:
+            if self.detection_enabled:
                 if current_time - self.startup_time > 10:
                     self.motion_detected = self._detect_motion(frame)
                 else:
@@ -100,6 +105,7 @@ class Camera:
                         if self.notifications_enabled and self.app_conf.notifications_enabled and self.app_conf.discord_webhook:
                             send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.",
                                          self.app_conf.discord_webhook)
+                        self._prune_clips()
 
             time.sleep(self.fps_sleep)
 
@@ -210,3 +216,28 @@ class Camera:
 
         except Exception as e:
             print(f"Error killing video processes: {e}")
+
+    def _prune_clips(self):
+        clips = []
+        clip_dir = f'{AppConfig.get().root_folder}/cams/{self.id}'
+        for f in os.listdir(clip_dir):
+            if f.endswith('.mp4'):
+                path = os.path.join(clip_dir, f)
+                clips.append({
+                    'name': f,
+                    'modified': datetime.fromtimestamp(os.path.getmtime(path))
+                })
+
+        clips.sort(key=lambda x: x['modified'])
+
+        # Remove old clips if exceeding the retain count
+        if len(clips) > self.retain_clips:
+            delete_amount = len(clips) - self.retain_clips
+            to_delete = clips[:delete_amount]
+
+            for clip in to_delete:
+                try:
+                    os.remove(f"{clip_dir}/{clip['name']}")
+                    print(f"Deleted old clip: {clip['name']}")
+                except Exception as e:
+                    print(f"Failed to delete {clip['name']}: {e}")

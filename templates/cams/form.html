@@ -71,7 +71,23 @@
         </div>
 
         <div>
-            <button type="submit">
+            {{ form.detection_enabled.label }}<br>
+            {{ form.detection_enabled }}<br>
+            {% for error in form.detection_enabled.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div>
+            {{ form.retain_clips.label }}<br>
+            {{ form.retain_clips }}<br>
+            {% for error in form.retain_clips.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div>
+            <button type="submit" class="mt-2">
                 Save
             </button>
         </div>
