@@ -2,6 +2,9 @@
 
 {% block main %}
     <h1>Camera List</h1>
+    {% if session.pending_changes %}
+      <div class="alert alert-warning">You have pending changes.</div>
+    {% endif %}
     <p>
         <a href="{{ url_for('cams.create') }}">Add New Camera</a>
         <form action="{{ url_for('cams.reload') }}" method="post" style="display:inline;">

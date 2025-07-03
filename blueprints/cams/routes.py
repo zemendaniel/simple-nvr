@@ -1,6 +1,6 @@
 import time
 
-from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash, request, g
+from flask import redirect, url_for, Response, stream_with_context, render_template, abort, flash, request, g, session
 from blueprints.cams import bp
 from security.decorators import is_fully_authenticated, is_admin
 from .forms import CamForm
@@ -59,8 +59,8 @@ def create():
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        # CameraManager.get_instance().reload_cameras()
-        flash("Camera added successfully|You need to reload the cameras to apply the changes.", "success")
+        session['pending_changes'] = True
+        flash("Camera added successfully. You need to reload the cameras to apply the changes.", "success")
         return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", create=True, form=form)
@@ -76,8 +76,8 @@ def edit(cam_id):
     if form.validate_on_submit():
         form.populate_obj(cam)
         cam.save()
-        # CameraManager.get_instance().reload_cameras()
-        flash("Camera modified successfully|You need to reload the cameras to apply the changes.", "success")
+        session['pending_changes'] = True
+        flash("Camera modified successfully. You need to reload the cameras to apply the changes.", "success")
         return redirect(url_for('cams.settings'))
 
     return render_template("cams/form.html", form=form, cam=cam)
@@ -89,8 +89,8 @@ def edit(cam_id):
 def delete(cam_id):
     cam = CamRepository.find_by_id(cam_id) or abort(404)
     cam.delete()
-    # CameraManager.get_instance().reload_cameras()
-    flash("Camera deleted successfully|You need to reload the cameras to apply the changes.", 'sucess')
+    session['pending_changes'] = True
+    flash("Camera deleted successfully. You need to reload the cameras to apply the changes.", 'sucess')
     return redirect(url_for("cams.settings"))
 
 
@@ -108,5 +108,6 @@ def settings():
 @is_admin
 def reload():
     CameraManager.get_instance().reload_cameras()
+    session['pending_changes'] = False
     flash("Cameras reloaded successfully", 'success')
     return redirect(url_for('cams.settings'))

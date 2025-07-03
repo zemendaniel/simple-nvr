@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, session
 import atexit
 from cameras.manager import CameraManager
 from config import Config
