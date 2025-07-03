@@ -5,7 +5,7 @@
     <form method="POST">
         {{ form.hidden_tag() }}
 
-        <div>
+        <div class="mb-2">
             {{ form.discord_webhook.label }}<br>
             {{ form.discord_webhook(size=64) }}<br>
             {% for error in form.discord_webhook.errors %}
@@ -13,10 +13,18 @@
             {% endfor %}
         </div>
 
-        <div>
+        <div class="mb-2">
             {{ form.notifications_enabled() }}
             {{ form.notifications_enabled.label }}<br>
             {% for error in form.notifications_enabled.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div class="mb-2">
+            {{ form.root_url.label }}<br>
+            {{ form.root_url(size=64) }}<br>
+            {% for error in form.root_url.errors %}
                 <span style="color: red;">{{ error }}</span><br>
             {% endfor %}
         </div>

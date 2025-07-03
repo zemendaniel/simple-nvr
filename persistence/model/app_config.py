@@ -1,5 +1,5 @@
 from alchemical import Model
-from sqlalchemy import Boolean, Text, Integer
+from sqlalchemy import Boolean, Text, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from flask import g
 from persistence import db
@@ -10,6 +10,7 @@ class AppConfig(Model):
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, nullable=True)
     discord_webhook: Mapped[str] = mapped_column(Text, nullable=True)
     root_folder: Mapped[str] = mapped_column(Text, nullable=False)
+    root_url: Mapped[str] = mapped_column(Text, nullable=False)
 
     @staticmethod
     def get():

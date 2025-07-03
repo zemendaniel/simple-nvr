@@ -1,5 +1,6 @@
 import secrets
 from datetime import datetime
+from urllib.parse import urljoin, urlencode
 
 import cv2
 import threading
@@ -47,6 +48,8 @@ class Camera:
         self.buffer_duration = 5
         self.frame_buffer = deque(maxlen=self.fps * 5)  # 5 sec at most
         self.recording_start_timestamp = None
+        self.recording_filename = None
+        self.last_filename = None
 
         self.is_recording = False
         self.recording_lock = threading.Lock()
@@ -55,8 +58,8 @@ class Camera:
 
         self.startup_time = time.time()
 
-        with db.Session() as s:
-            self.app_conf = s.get(AppConfig, 1)
+        # with db.Session() as s:
+        #     self.app_conf = s.get(AppConfig, 1)
 
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
@@ -102,10 +105,27 @@ class Camera:
                                 print("[ERROR] FFmpeg pipe closed unexpectedly.")
                     if current_time >= self.post_motion_end_time:
                         self._stop_recording()
-                        if self.notifications_enabled and self.app_conf.notifications_enabled and self.app_conf.discord_webhook:
-                            send_message(f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}. Recording saved.",
-                                         self.app_conf.discord_webhook)
-                        self._prune_clips()
+
+                        if self.notifications_enabled and AppConfig.get().notifications_enabled and AppConfig.get().discord_webhook:
+                            query_params = {
+                                'cam_id': self.id,
+                                'filename': self.last_filename,
+                            }
+                            base_url = AppConfig.get().root_url
+                            path = '/clips'
+                            full_url = urljoin(base_url, path) + '?' + urlencode(query_params)
+
+                            message = (
+                                f"Motion detected on camera **{self.name}** at {self.recording_start_timestamp}.\n"
+                                f"[Recording saved]({full_url})"
+                            )
+
+                            # Create and start a thread
+                            threading.Thread(target=send_in_thread, args=(message, AppConfig.get().discord_webhook),
+                                             daemon=True).start()
+
+                        if self.retain_clips != 0:
+                            self._prune_clips()
 
             time.sleep(self.fps_sleep)
 
@@ -125,7 +145,8 @@ class Camera:
         return motion_level > self.sensitivity
 
     def _start_recording(self, frame):
-        recording_filename = f"{self.app_conf.root_folder}/cams/{self.id}/{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
+        self.last_filename = f"{self.recording_start_timestamp}_{secrets.token_hex(4)}.mp4"
+        self.recording_filename = f"{AppConfig.get().root_folder}/cams/{self.id}/{self.last_filename}"
         height, width = frame.shape[:2]
 
         # Start FFmpeg process
@@ -143,7 +164,7 @@ class Camera:
             '-preset', 'veryfast',
             '-tune', 'zerolatency',
             '-pix_fmt', 'yuv420p',
-            recording_filename
+            self.recording_filename
         ], stdin=subprocess.PIPE)
 
         self.is_recording = True
@@ -153,7 +174,7 @@ class Camera:
             for buffered_frame in self.frame_buffer:
                 self.ffmpeg_process.stdin.write(buffered_frame.tobytes())
 
-        print(f"[INFO] Recording started: {recording_filename}")
+        print(f"[INFO] Recording started: {self.recording_filename}")
 
     def _stop_recording(self):
         with self.recording_lock:
@@ -241,3 +262,7 @@ class Camera:
                     print(f"Deleted old clip: {clip['name']}")
                 except Exception as e:
                     print(f"Failed to delete {clip['name']}: {e}")
+
+
+def send_in_thread(msg, webhook):
+    send_message(msg, webhook)

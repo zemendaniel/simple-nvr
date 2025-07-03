@@ -16,5 +16,5 @@ class CamForm(FlaskForm):
     enabled = BooleanField('Enabled', default=True)
     notifications_enabled = BooleanField('Notifications enabled', default=True)
     detection_enabled = BooleanField('Detection enabled', default=True)
-    retain_clips = IntegerField('Clip retention amount',
+    retain_clips = IntegerField('Clip retention amount (set 0 for unlimited)',
                                 validators=[InputRequired(), NumberRange(1, 10000)])
