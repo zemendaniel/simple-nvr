@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+#camera-stream {
+      touch-action: pinch-zoom; /* allows pinch to zoom on supported browsers */
+      -webkit-user-select: none; /* avoid accidental text selection on iOS */
+      user-select: none;
+    }
+</style>
+{% endblock %}
 {% block main %}
     <!-- Camera selection -->
     <div class="mb-4 text-center">
@@ -15,11 +24,13 @@
         <div class="text-center mb-3">
             <h3 class="mb-3">{{ selected_cam.name }}</h3>
             <div class="d-flex justify-content-center">
-                <img src="{{ url_for('cams.video_feed', cam_id=selected_cam.id) }}"
-                     alt="Live Stream for {{ selected_cam.name }}"
-                     class="rounded shadow"
-                     style="max-height: 80vh; max-width: 100%; object-fit: contain; cursor: pointer"
-                     id="camera-stream">
+              <img
+                src="{{ url_for('cams.video_feed', cam_id=selected_cam.id) }}"
+                alt="Live Stream for {{ selected_cam.name }}"
+                class="rounded shadow"
+                style="max-height: 80vh; max-width: 100%; object-fit: contain; cursor: pointer"
+                id="camera-stream"
+              >
             </div>
         </div>
         <div class="text-center my-2">
