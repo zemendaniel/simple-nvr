@@ -1,15 +1,81 @@
 {% extends "base.html" %}
 
 {% block head %}
-    <style>
-    .selected-clip {
-        font-weight: bold;
-        text-decoration: underline;
-        color: red;
-    }
-    </style>
-{% endblock %}
+<style>
+.selected-clip {
+    font-weight: bold;
+    text-decoration: underline;
+    color: red;
+}
 
+/* Container for clips timeline buttons */
+#timeline {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px; /* space between clips */
+    padding: 10px 0;
+}
+
+/* Individual clip block */
+#timeline > form > div {
+    flex: 0 1 140px; /* flexible width with minimum */
+    text-align: center;
+}
+
+/* Style the clip time buttons */
+button.clip-time {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Responsive video container */
+#video-container video {
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+}
+
+/* Responsive form on mobile */
+@media (max-width: 600px) {
+    #search-form {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #search-form label {
+        margin: 6px 0;
+    }
+    #search-form input[type="datetime-local"],
+    #search-form input[type="checkbox"] {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Stack clip buttons vertically */
+    #timeline > form > div {
+        flex: 1 1 100%;
+        margin-bottom: 10px;
+    }
+    }
+    button.clip-time {
+      outline: none;
+    }
+
+    button.clip-time:hover {
+      color: red; /* green on hover */
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    button.clip-time:focus {
+      outline: none;  /* remove default focus outline */
+    }
+
+</style>
+{% endblock %}
 
 {% block main %}
 <h1>Clips</h1>
@@ -25,12 +91,12 @@
 
     <label class="mx-2">
         From:
-    <input type="datetime-local" name="from_datetime" value="{{ request.args.get('from_datetime', '') }}">
+        <input type="datetime-local" name="from_datetime" value="{{ request.args.get('from_datetime', '') }}">
     </label>
 
     <label class="mx-2">
         To:
-    <input type="datetime-local" name="to_datetime" value="{{ request.args.get('to_datetime', '') }}">
+        <input type="datetime-local" name="to_datetime" value="{{ request.args.get('to_datetime', '') }}">
     </label>
 
     <button type="button" class="btn btn-secondary mx-2" onclick="clearFilters()">Reset</button>
@@ -50,19 +116,21 @@
     <form id="clips-action-form" method="post" action="{{ url_for('clips.action') }}?saved={{ saved if saved }}&cam_id={{ cam_id }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
         {% for clip in clips %}
-        <div style="display: inline-block; margin: 0 10px; text-align: center;">
+        <div style="flex: 0 1 140px; text-align: center;">
             <input type="checkbox" name="selected_clips" value="{{ clip.name }}" id="clip-{{ loop.index }}">
             <label for="clip-{{ loop.index }}">
-            <button
-                type="button"
-                class="btn btn-link clip-time"
-                onclick="selectVideo('{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}', '{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}', this, '{{ clip.name }}')">
-                {{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}
-            </button>
+                <button
+                    type="button"
+                    class="btn btn-link clip-time"
+                    onclick="selectVideo('{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}', '{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}', this, '{{ clip.name }}')">
+                    {{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}
+                </button>
             </label>
         </div>
         {% endfor %}
+    </div>
 
         <div style="margin-top: 20px;">
             <button type="submit" name="action" value="delete" class="btn btn-danger" onclick="return confirm('Delete selected clips?');">Delete Selected</button>
@@ -73,7 +141,7 @@
     </form>
 </div>
 
-    <div id="video-container" class="text-center"></div>
+<div id="video-container" class="text-center mb-2"></div>
 
 {% else %}
     <p class="text-center mt-4">There are no clips.</p>
@@ -110,46 +178,46 @@ function clearFilters() {
 
 function selectVideo(time, src, button, filename) {
     if (lastSelectedButton) {
-    lastSelectedButton.classList.remove('selected-clip');
+        lastSelectedButton.classList.remove('selected-clip');
     }
-    button.classList.add('selected-clip')
-    lastSelectedButton = button
+    button.classList.add('selected-clip');
+    lastSelectedButton = button;
 
     updateUrlParam('filename', filename);
 
+    const videoContainer = document.getElementById('video-container');
 
-      const videoContainer = document.getElementById('video-container');
+    // Clear any existing video
+    videoContainer.innerHTML = '';
 
-      // Clear any existing video
-      videoContainer.innerHTML = '';
+    // Create video element
+    const video = document.createElement('video');
+    video.setAttribute('width', '640');
+    video.setAttribute('height', '360');
+    video.setAttribute('controls', '');
+    video.setAttribute('preload', 'metadata');
 
-      // Create video element
-      const video = document.createElement('video');
-      video.setAttribute('width', '640');
-      video.setAttribute('height', '360');
-      video.setAttribute('controls', '');
-      video.setAttribute('preload', 'metadata');
+    const source = document.createElement('source');
+    source.setAttribute('src', src);
+    source.setAttribute('type', 'video/mp4');
 
-      const source = document.createElement('source');
-      source.setAttribute('src', src);
-      source.setAttribute('type', 'video/mp4');
+    video.appendChild(source);
 
-      video.appendChild(source);
+    // Add time label above video
+    const timeLabel = document.createElement('p');
+    timeLabel.className = 'text-muted';
+    timeLabel.textContent = time;
 
-      // Add time label above video
-      const timeLabel = document.createElement('p');
-      timeLabel.className = 'text-muted';
-      timeLabel.textContent = time;
+    videoContainer.appendChild(timeLabel);
+    videoContainer.appendChild(video);
 
-      videoContainer.appendChild(timeLabel);
-      videoContainer.appendChild(video);
-
-      // Scroll to video
-      video.scrollIntoView({ behavior: 'smooth' });
-      video.addEventListener('canplay', () => {
+    // Scroll to video
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    video.addEventListener('canplay', () => {
         video.play();
-      });
+    });
 }
+
 window.addEventListener('DOMContentLoaded', () => {
     const filename = getUrlParam('filename');
     if (filename) {
@@ -161,9 +229,9 @@ window.addEventListener('DOMContentLoaded', () => {
             if (checkbox && checkbox.value === filename) {
                 // Extract time and src from the button and URL params
                 const time = button.textContent;
-                const src = button.getAttribute('onclick').match(/'(.*?)'/g)[1].replace(/'/g, '') + '&filename=' + encodeURIComponent(filename);
+                const srcMatch = button.getAttribute('onclick').match(/'(.*?)'/g);
+                const src = (srcMatch && srcMatch[1].replace(/'/g, '')) + '&filename=' + encodeURIComponent(filename);
                 selectVideo(time, src, button, filename);
-
             }
         });
     }
