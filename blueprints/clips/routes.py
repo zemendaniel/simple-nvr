@@ -68,50 +68,49 @@ def list_all():
 @bp.route('/play/<filename>')
 @is_fully_authenticated
 def play(filename):
-    saved = request.args.get('saved', default=None)  # e.g. "true" or None
+    saved = request.args.get('saved', default=None)  # "true" or None
     cam_id = request.args.get('cam_id')
     if cam_id is None:
         return "Missing camera ID", 400
 
-    # Build the base directory based on saved or live
     if saved:
         base_dir = f"clips/saved/{cam_id}"
     else:
         base_dir = f"clips/cams/{cam_id}"
 
-    # Construct full absolute file path safely
     safe_base = os.path.abspath(base_dir)
     file_path = os.path.abspath(os.path.join(safe_base, filename))
 
-    # Prevent directory traversal attack
     if not file_path.startswith(safe_base):
         return "Forbidden", 403
 
     if not os.path.exists(file_path):
         return "File not found", 404
 
-    # Now handle range requests as before (streaming support)
-    range_header = request.headers.get('Range', None)
-    if not range_header:
-        return Response(open(file_path, 'rb'), mimetype='video/mp4')
+    # Let Flask/Werkzeug handle Range requests natively:
+    try:
+        return send_file(file_path, mimetype='video/mp4', conditional=True)
+    except Exception:
+        # If send_file doesn't handle range properly, fallback to manual handling
+        range_header = request.headers.get('Range', None)
+        size = os.path.getsize(file_path)
+        byte1, byte2 = 0, size - 1
 
-    size = os.path.getsize(file_path)
-    byte1, byte2 = 0, size - 1
-    match = re.search(r'bytes=(\d+)-(\d*)', range_header)
-    if match:
-        byte1 = int(match.group(1))
-        if match.group(2):
-            byte2 = int(match.group(2))
+        if range_header:
+            match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+            if match:
+                byte1 = int(match.group(1))
+                if match.group(2):
+                    byte2 = int(match.group(2))
+        length = byte2 - byte1 + 1
 
-    length = byte2 - byte1 + 1
+        with open(file_path, 'rb') as f:
+            f.seek(byte1)
+            data = f.read(length)
 
-    with open(file_path, 'rb') as f:
-        f.seek(byte1)
-        data = f.read(length)
-
-    rv = Response(data, 206, mimetype='video/mp4', direct_passthrough=True)
-    rv.headers.add('Content-Range', f'bytes {byte1}-{byte2}/{size}')
-    rv.headers.add('Accept-Ranges', 'bytes')
-    rv.headers.add('Content-Length', str(length))
-    rv.headers.add('Content-Type', 'video/mp4')
-    return rv
+        rv = Response(data, 206 if range_header else 200, mimetype='video/mp4', direct_passthrough=True)
+        if range_header:
+            rv.headers.add('Content-Range', f'bytes {byte1}-{byte2}/{size}')
+            rv.headers.add('Accept-Ranges', 'bytes')
+            rv.headers.add('Content-Length', str(length))
+        return rv

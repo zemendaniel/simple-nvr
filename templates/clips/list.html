@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 
+{% block head %}
+    <style>
+    .selected-clip {
+        font-weight: bold;
+        text-decoration: underline;
+        color: #007bff; /* Bootstrap primary */
+    }
+    </style>
+{% endblock %}
+
+
 {% block main %}
 <h1>Clips</h1>
 
@@ -25,29 +36,37 @@
     <button type="submit" class="btn btn-primary mx-2">Filter</button>
     <button type="button" class="btn btn-secondary mx-2" onclick="clearFilters()">Reset</button>
 </form>
-    <div class="mb-4 text-center">
-        {% for cam in cams %}
-            <a href="{{ url_for('clips.list_all') }}?cam={{ cam.id }}" class="mx-2">
-                {{ cam.name }}
-            </a>
+
+<div class="mb-4 text-center">
+    {% for cam in cams %}
+        <a href="{{ url_for('clips.list_all') }}?cam={{ cam.id }}" class="mx-2">
+            {{ cam.name }}
+        </a>
+    {% endfor %}
+</div>
+
+{% if clips %}
+    <div id="timeline" class="mb-4 text-center">
+        <p>Click a timestamp to load video:</p>
+        {% for clip in clips %}
+        <button
+            class="btn btn-link clip-time"
+            onclick="selectVideo('{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}', '{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}', this)">
+            {{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}
+        </button>
         {% endfor %}
     </div>
 
-    {% if clips %}
-        {% for clip in clips %}
-            <div class="mb-4">
-                <p class="text-muted">{{ clip.modified.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-                <video width="640" height="360" controls preload="metadata">
-                <source src="{{ url_for('clips.play', filename=clip.name) }}?saved={{ saved if saved }}&cam_id={{ cam_id }}" type="video/mp4" />
-                    Your browser does not support the video tag.
-                </video>
-            </div>
-        {% endfor %}
-    {% else %}
-        <p class="text-center mt-4">There are no clips.</p>
-    {% endif %}
+    <div id="video-container" class="text-center"></div>
+
+{% else %}
+    <p class="text-center mt-4">There are no clips.</p>
+{% endif %}
 
 <script>
+let lastSelectedButton = null;
+
+
 function clearFilters() {
   const form = document.getElementById('search-form');
   form.reset();
@@ -57,5 +76,46 @@ function clearFilters() {
   form.querySelector('[name="to_datetime"]').value = '';
   form.querySelector('[name="saved"]').checked = false;
 }
+
+function selectVideo(time, src, button) {
+    if (lastSelectedButton) {
+    lastSelectedButton.classList.remove('selected-clip');
+    }
+    button.classList.add('selected-clip')
+    lastSelectedButton = button
+
+
+      const videoContainer = document.getElementById('video-container');
+
+      // Clear any existing video
+      videoContainer.innerHTML = '';
+
+      // Create video element
+      const video = document.createElement('video');
+      video.setAttribute('width', '640');
+      video.setAttribute('height', '360');
+      video.setAttribute('controls', '');
+      video.setAttribute('preload', 'metadata');
+
+      const source = document.createElement('source');
+      source.setAttribute('src', src);
+      source.setAttribute('type', 'video/mp4');
+
+      video.appendChild(source);
+
+      // Add time label above video
+      const timeLabel = document.createElement('p');
+      timeLabel.className = 'text-muted';
+      timeLabel.textContent = time;
+
+      videoContainer.appendChild(timeLabel);
+      videoContainer.appendChild(video);
+
+      // Scroll to video
+      video.scrollIntoView({ behavior: 'smooth' });
+
+}
+
 </script>
+
 {% endblock %}
