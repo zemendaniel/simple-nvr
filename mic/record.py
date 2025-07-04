@@ -1,9 +1,6 @@
-import numpy as np
 import pyaudio
 import threading
-import time
 import queue
-from flask import Response
 
 
 class LiveAudioStream:
