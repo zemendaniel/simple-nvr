@@ -43,6 +43,11 @@
         <p class="text-center mt-4">Add a camera to view the stream.</p>
     {% endif %}
 
+    <audio controls autoplay>
+        <source src="{{ url_for('cams.audio_feed') }}" type="audio/wav" />
+        Your browser does not support audio.
+    </audio>
+
     <script>
         document.getElementById("camera-stream").addEventListener("click", function () {
             const elem = this;
