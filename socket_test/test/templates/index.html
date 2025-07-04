@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head><title>Audio Stream</title></head>
+<body>
+  <h1>Live Audio Stream</h1>
+  <button id="start">Start Audio</button>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    const sampleRate = 44100;
+    const channels = 2;
+    const chunkSize = 1024; // frames per chunk
+
+    let audioCtx;
+    let audioQueue = [];
+    let isPlaying = false;
+    let nextTime = 0;
+
+    function startAudio() {
+      if (audioCtx) return;
+      audioCtx = new AudioContext({ sampleRate });
+
+      // To avoid browsers blocking autoplay:
+      audioCtx.resume();
+
+      socket.on('audio_chunk', (data) => {
+        // Create Int16Array from raw bytes
+        const int16Array = new Int16Array(data);
+
+        // Create Float32Array of the same length
+        const float32Array = new Float32Array(int16Array.length);
+
+        // Convert int16 samples to float32 [-1,1]
+        for (let i = 0; i < int16Array.length; i++) {
+          float32Array[i] = int16Array[i] / 32768;
+        }
+
+        playAudioChunk(float32Array);
+      });
+    }
+
+    function playAudioChunk(float32Array) {
+      if (!audioCtx) return;
+
+      const audioBuffer = audioCtx.createBuffer(
+        channels,
+        float32Array.length / channels,
+        sampleRate
+      );
+
+      for(let ch = 0; ch < channels; ch++) {
+        const channelData = audioBuffer.getChannelData(ch);
+        // Extract samples for channel ch
+        for(let i = 0; i < channelData.length; i++) {
+          channelData[i] = float32Array[i * channels + ch];
+        }
+      }
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioCtx.destination);
+
+      if (nextTime < audioCtx.currentTime) {
+        nextTime = audioCtx.currentTime + 0.05; // add small delay
+      }
+      source.start(nextTime);
+      nextTime += audioBuffer.duration;
+    }
+
+    document.getElementById('start').onclick = startAudio;
+  </script>
+</body>
+</html>
