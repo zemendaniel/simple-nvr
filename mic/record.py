@@ -1,117 +1,87 @@
-import numpy as np
-import pyaudio
+import sounddevice as sd
+import queue
 import threading
 import time
-import queue
-from flask import Response
 
 
 class LiveAudioStream:
     def __init__(self,
                  rate=44100,
-                 channels=1,
+                 channels=2,
                  bits_per_sample=16,
-                 chunk=256,
-                 input_device_index=None,
-                 max_queue_size=5):
+                 chunk=1024,
+                 max_queue_size=10):
         self.rate = rate
         self.channels = channels
         self.bits_per_sample = bits_per_sample
         self.chunk = chunk
-        self.input_device_index = input_device_index
-        self.format = pyaudio.paInt16
+        self.max_queue_size = max_queue_size
 
-        self.audio_interface = pyaudio.PyAudio()
-        self.stream = None
-
+        self.q = queue.Queue(maxsize=max_queue_size)
         self.running = False
-        self.thread = None
-
-        self.buffer = queue.Queue(maxsize=max_queue_size)  # thread-safe queue for audio chunks
+        self.stream = None
 
         self.wav_header = self._generate_wav_header()
 
     def _generate_wav_header(self):
-        datasize = 2000 * 10 ** 6  # large dummy size for live stream
+        datasize = 2000 * 10**6  # large dummy size for streaming
         o = bytes("RIFF", 'ascii')
         o += (datasize + 36).to_bytes(4, 'little')
         o += bytes("WAVE", 'ascii')
         o += bytes("fmt ", 'ascii')
-        o += (16).to_bytes(4, 'little')
-        o += (1).to_bytes(2, 'little')
+        o += (16).to_bytes(4, 'little')  # fmt chunk size
+        o += (1).to_bytes(2, 'little')  # PCM format
         o += self.channels.to_bytes(2, 'little')
         o += self.rate.to_bytes(4, 'little')
-        o += (self.rate * self.channels * self.bits_per_sample // 8).to_bytes(4, 'little')
-        o += (self.channels * self.bits_per_sample // 8).to_bytes(2, 'little')
+        byte_rate = self.rate * self.channels * self.bits_per_sample // 8
+        o += byte_rate.to_bytes(4, 'little')
+        block_align = self.channels * self.bits_per_sample // 8
+        o += block_align.to_bytes(2, 'little')
         o += self.bits_per_sample.to_bytes(2, 'little')
         o += bytes("data", 'ascii')
         o += datasize.to_bytes(4, 'little')
         return o
 
-    def _start_stream(self):
-        if not self.stream:
-            self.stream = self.audio_interface.open(
-                format=self.format,
-                channels=self.channels,
-                rate=self.rate,
-                input=True,
-                input_device_index=self.input_device_index,
-                frames_per_buffer=self.chunk
-            )
-
-    def _capture_loop(self):
-        """Background thread: reads audio and pushes to queue."""
-        self._start_stream()
-        while self.running:
+    def _callback(self, indata, frames, time_info, status):
+        if status:
+            print(f"Sounddevice status: {status}")
+        try:
+            self.q.put(indata.copy(), block=False)
+        except queue.Full:
             try:
-                data = self.stream.read(self.chunk, exception_on_overflow=False)
-                # If buffer is full, discard oldest to keep latency low
-                if self.buffer.full():
-                    try:
-                        self.buffer.get_nowait()
-                    except queue.Empty:
-                        pass
-                self.buffer.put(data)
-            except Exception as e:
-                print("Audio capture error:", e)
-                break
-        self._stop_stream()
+                self.q.get_nowait()  # discard oldest
+                self.q.put(indata.copy())
+            except queue.Empty:
+                pass
 
     def start(self):
-        """Start background audio capturing thread."""
         if self.running:
             return
         self.running = True
-        self.thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self.thread.start()
+        self.stream = sd.InputStream(
+            samplerate=self.rate,
+            channels=self.channels,
+            dtype='int16',
+            blocksize=self.chunk,
+            callback=self._callback
+        )
+        self.stream.start()
 
     def stop(self):
-        """Stop background capturing thread."""
+        if not self.running:
+            return
         self.running = False
-        if self.thread:
-            self.thread.join()
-            self.thread = None
-
-    def _stop_stream(self):
         if self.stream:
-            self.stream.stop_stream()
+            self.stream.stop()
             self.stream.close()
             self.stream = None
 
-    def terminate(self):
-        """Stop thread, close stream and terminate PyAudio."""
-        self.stop()
-        self._stop_stream()
-        self.audio_interface.terminate()
-
     def generate_audio_stream(self):
-        """Generator used in Flask response — yields WAV header once, then audio from queue."""
+        """Generator for streaming in Flask response."""
         yield self.wav_header
-        while self.running or not self.buffer.empty():
+        while self.running or not self.q.empty():
             try:
-                chunk = self.buffer.get(timeout=1)  # wait max 1 second for chunk
-                yield chunk
+                data = self.q.get(timeout=1)
+                yield data.tobytes()
             except queue.Empty:
-                # If no data available, just continue and wait
                 continue
-
