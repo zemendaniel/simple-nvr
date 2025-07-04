@@ -1,3 +1,4 @@
+import numpy as np
 import pyaudio
 import threading
 import time
@@ -10,9 +11,9 @@ class LiveAudioStream:
                  rate=44100,
                  channels=1,
                  bits_per_sample=16,
-                 chunk=1024,
+                 chunk=256,
                  input_device_index=None,
-                 max_queue_size=20):
+                 max_queue_size=5):
         self.rate = rate
         self.channels = channels
         self.bits_per_sample = bits_per_sample
