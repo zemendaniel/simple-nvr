@@ -7,10 +7,6 @@ from .forms import CamForm
 from persistence.model.cam import Cam
 from persistence.repository.cam import CamRepository
 from cameras.manager import CameraManager
-from mic.record import LiveAudioStream
-
-stream = LiveAudioStream()
-stream.start()
 
 
 @bp.route('/video/<int:cam_id>')
@@ -32,11 +28,6 @@ def snapshot(cam_id):
         return Response(response=frame, mimetype='image/jpeg')
     else:
         return Response("Camera frame not available.", status=404)
-
-
-@bp.route('/audio')
-def audio_feed():
-    return Response(stream.generate_audio_stream(), mimetype='audio/x-wav')
 
 
 @bp.route('/')

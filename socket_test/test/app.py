@@ -12,6 +12,7 @@ sample_rate = 44100
 channels = 2
 chunk_size = 1024  # frames
 
+
 def audio_stream_thread():
     with sd.InputStream(samplerate=sample_rate, channels=channels, dtype='int16') as stream:
         while True:
