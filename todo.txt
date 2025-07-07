@@ -1,1 +1,3 @@
 2 way audio
+
+ability to add 1 mic device and based on hardware index create the audio streamer
