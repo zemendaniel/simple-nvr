@@ -1,3 +1,5 @@
+import eventlet
+eventlet.monkey_patch()
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import sounddevice as sd
@@ -36,4 +38,4 @@ def index():
 
 if __name__ == '__main__':
     threading.Thread(target=audio_stream_thread, daemon=True).start()
-    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)
