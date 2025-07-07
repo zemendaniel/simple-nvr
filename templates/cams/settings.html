@@ -26,6 +26,7 @@
                 <li><strong>Notifications Enabled:</strong> {{ "Yes" if cam.notifications_enabled else "No" }}</li>
                 <li><strong>Detection Enabled:</strong> {{ "Yes" if cam.detection_enabled else "No" }}</li>
                 <li><strong>Clip retention amount:</strong> {{ cam.retain_clips }}</li>
+                <li><strong>Show audio controls:</strong> {{ "Yes" if cam.show_audio_controls else "No" }}</li>
             </ul>
 
             {% if cam.enabled %}

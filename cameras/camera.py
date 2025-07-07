@@ -16,7 +16,7 @@ import os
 
 class Camera:
     def __init__(self, cam_id, url, fps, width, height, sensitivity, name, notifications_enabled, detection_enabled,
-                 retain_clips):
+                 retain_clips, show_audio_controls):
         if "/dev/video" in url:
             Camera.kill_video_processes(url)
             subprocess.run(["v4l2-ctl", "-d", url, "-c", "auto_exposure=3"])
@@ -31,6 +31,7 @@ class Camera:
         self.notifications_enabled = notifications_enabled
         self.detection_enabled = detection_enabled
         self.retain_clips = retain_clips
+        self.show_audio_controls = show_audio_controls
 
         self.fps_sleep = 1 / self.fps
         self.cap = cv2.VideoCapture(url)

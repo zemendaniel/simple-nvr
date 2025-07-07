@@ -28,7 +28,7 @@ class CameraManager:
                 self.cameras.append(Camera(
                     config.id, config.url, config.fps, config.width, config.height,
                     config.sensitivity, config.name, config.notifications_enabled, config.detection_enabled,
-                    config.retain_clips
+                    config.retain_clips, config.show_audio_controls
                 ))
 
     def get_camera(self, camera_id):

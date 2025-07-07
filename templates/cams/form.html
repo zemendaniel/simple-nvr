@@ -87,6 +87,14 @@
         </div>
 
         <div>
+            {{ form.show_audio_controls.label }}<br>
+            {{ form.show_audio_controls }}<br>
+            {% for error in form.show_audio_controls.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+
+        <div>
             <button type="submit" class="mt-2">
                 Save
             </button>

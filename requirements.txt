@@ -6,3 +6,6 @@ python-dotenv
 flask-minify
 alchemical
 requests
+flask-socketio
+sounddevice
+eventlet

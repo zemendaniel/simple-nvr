@@ -18,3 +18,4 @@ class CamForm(FlaskForm):
     detection_enabled = BooleanField('Detection enabled', default=True)
     retain_clips = IntegerField('Clip retention amount (set 0 for unlimited)',
                                 validators=[InputRequired(), NumberRange(1, 10000)])
+    show_audio_controls = BooleanField('Show audio controls', default=True)

@@ -1,4 +1,6 @@
-from flask import Flask, session
+import eventlet
+eventlet.monkey_patch()
+from flask import Flask
 import atexit
 from cameras.manager import CameraManager
 from config import Config
@@ -10,16 +12,18 @@ import blueprints.cams
 import blueprints.pages
 import blueprints.security
 import blueprints.clips
+import blueprints.audio
 import os
+from extensions import sio
 
 
-# camera = Camera(1, "/dev/video0", 5, 1280, 720, 1000, "clips")
 csrf = CSRFProtect()
 minify = Minify(html=True, js=True, cssless=True)
 
 
 def create_app(config_class=Config):
     app = Flask(__name__)
+    sio.init_app(app)
     app.config.from_object(config_class)
     persistence.init_app(app)
     security.init_app(app)
@@ -39,5 +43,8 @@ def create_app(config_class=Config):
     return app
 
 
+app = create_app()
+
+
 if __name__ == '__main__':
-    create_app().run(host="0.0.0.0", port=5001, debug=False, threaded=True)
+    sio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)

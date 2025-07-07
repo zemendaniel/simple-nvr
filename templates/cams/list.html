@@ -8,6 +8,7 @@
       user-select: none;
     }
 </style>
+<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
 {% endblock %}
 {% block main %}
     <!-- Camera selection -->
@@ -70,5 +71,101 @@
             link.click();
         }
     </script>
+
+    {% if selected_cam.show_audio_controls %}
+        <button id="toggle-audio" onclick="toggleAudio()">Start Audio</button>
+        <script>
+        const socket = io();
+        const sampleRate = 44100;
+        const channels = 2;
+        let audioCtx;
+        let isPlaying = false;
+        const playbackBuffer = [];
+        let nextTime = 0;
+        let schedulerId;
+
+        function startAudio() {
+          if (audioCtx) return;
+          socket.emit('start_audio');
+          console.log('Sent start_audio event');
+          audioCtx = new AudioContext({ sampleRate });
+          audioCtx.resume();
+          socket.on('audio_chunk', onAudioChunkReceived);
+          isPlaying = true;
+          nextTime = audioCtx.currentTime + 0.05;
+          schedulePlayback();
+        }
+
+        function onAudioChunkReceived(data) {
+          const int16Array = new Int16Array(data.buffer || data);
+          const float32Array = new Float32Array(int16Array.length);
+
+          for (let i = 0; i < int16Array.length; i++) {
+            float32Array[i] = int16Array[i] / 32768;
+          }
+
+          playbackBuffer.push(float32Array);
+        }
+
+        function schedulePlayback() {
+          if (!audioCtx || !isPlaying) return;
+
+          while (playbackBuffer.length > 0) {
+            const float32Array = playbackBuffer.shift();
+            const buffer = audioCtx.createBuffer(
+              channels,
+              float32Array.length / channels,
+              sampleRate
+            );
+
+            for (let ch = 0; ch < channels; ch++) {
+              const channelData = buffer.getChannelData(ch);
+              for (let i = 0; i < channelData.length; i++) {
+                channelData[i] = float32Array[i * channels + ch];
+              }
+            }
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+
+            if (nextTime < audioCtx.currentTime) {
+              nextTime = audioCtx.currentTime + 0.05;
+            }
+
+            source.start(nextTime);
+            nextTime += buffer.duration;
+          }
+
+          schedulerId = setTimeout(schedulePlayback, 50);  // check buffer every 50ms
+        }
+
+        function stopAudio() {
+          if (!isPlaying) {return;}
+          socket.off('audio_chunk');
+          socket.emit('stop_audio');
+          console.log('Sent stop_audio event');
+          clearTimeout(schedulerId);
+          audioCtx.close().then(() => {
+            console.log('Audio context closed');
+            audioCtx = null;
+          });
+          isPlaying = false;
+        }
+
+        function toggleAudio() {
+            const btn = document.getElementById('toggle-audio');
+            if (isPlaying) {
+                stopAudio();
+                btn.innerText = 'Start Audio'
+            }
+            else {
+                startAudio();
+                btn.innerText = 'Stop Audio'
+            }
+        }
+      </script>
+
+    {% endif %}
 
 {% endblock %}

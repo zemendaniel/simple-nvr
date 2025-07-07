@@ -2,15 +2,14 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import sounddevice as sd
 import threading
-import numpy as np
-import time
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
 sample_rate = 44100
 channels = 2
-chunk_size = 1024  # frames
+chunk_size = 1024
 
 
 def audio_stream_thread():
@@ -19,7 +18,7 @@ def audio_stream_thread():
             data, _ = stream.read(chunk_size)
             # send raw PCM bytes to all connected clients
             socketio.emit('audio_chunk', data.tobytes())
-            socketio.sleep(0)  # yield to SocketIO
+            socketio.sleep(0)
 
 # @socketio.on('connect')
 # def on_connect():
