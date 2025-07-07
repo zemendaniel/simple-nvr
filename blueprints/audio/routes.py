@@ -1,8 +1,6 @@
 from extensions import sio
-from audio.streamer import AudioStreamer
+from . import streamer
 from flask import request
-
-streamer = AudioStreamer()
 
 
 @sio.on('start_audio')
