@@ -41,13 +41,8 @@ class AudioStreamer:
             with sd.InputStream(samplerate=self.sample_rate, channels=self.channels, dtype='int16') as stream:
                 while self.is_running:
                     data, _ = stream.read(self.chunk_size)
-                    threading.Thread(
-                        target=AudioStreamer.send_audio, args=(self.room, data)
-                    ).start()
+                    sio.emit('audio_chunk', data.tobytes(), room=self.room)
+                    sio.sleep(0)
         except Exception as e:
             print(f'[AudioStreamer] Error: {e}')
 
-    @staticmethod
-    def send_audio(room, data):
-        sio.emit('audio_chunk', data.tobytes(), room=room)
-        sio.sleep(0)
