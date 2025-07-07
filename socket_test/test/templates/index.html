@@ -4,13 +4,15 @@
 <body>
   <h1>Live Audio Stream</h1>
   <button id="start">Start Audio</button>
+  <button id="stop">Stop Audio</button>
   <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
   <script>
     const socket = io();
     const sampleRate = 44100;
     const channels = 2;
     let audioCtx;
-    let nextTime = 0;
+    let isPlaying = false;
+    let playbackBuffer = [];
 
     function startAudio() {
       if (audioCtx) return;
@@ -25,7 +27,19 @@
 
         playAudioChunk(float32Array);
       });
+      isPlaying = true;
     }
+    function stopAudio() {
+      if (!isPlaying) {return;}
+      socket.off('audio_chunk');
+
+      audioCtx.close().then(() => {
+        console.log('Audio context closed');
+        audioCtx = null;
+      });
+      isPlaying = false;
+    }
+
 
     function playAudioChunk(float32Array) {
       if (!audioCtx) return;
@@ -55,6 +69,7 @@
     }
 
     document.getElementById('start').onclick = startAudio;
+    document.getElementById('stop').onclick = stopAudio;
   </script>
 </body>
 </html>
