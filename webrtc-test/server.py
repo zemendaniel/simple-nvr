@@ -1,113 +1,139 @@
-import argparse
 import asyncio
 import json
 import logging
 import os
-import platform
 import ssl
-from typing import Optional
-
+from av.audio.frame import AudioFrame
+import sounddevice as sd
+from fractions import Fraction
 from aiohttp import web
 from aiortc import (
     MediaStreamTrack,
     RTCPeerConnection,
-    RTCRtpSender,
-    RTCSessionDescription,
+    RTCSessionDescription, RTCIceServer, RTCConfiguration,
 )
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 
 ROOT = os.path.dirname(__file__)
 
+
+def custom_host_addresses(**kwargs):
+    print("Custom get_host_addresses called with:", kwargs)
+    return ["0.0.0.0"]  # ← IP as string, not ip_address()
+
+
+#ice.get_host_addresses = custom_host_addresses
+
 pcs = set()
-relay = None
+video_relay = None
+audio_relay = None
 webcam = None
+mic = None
 
 
-def create_local_tracks(
-    play_from: str, decode: bool
-) -> tuple[Optional[MediaStreamTrack], Optional[MediaStreamTrack]]:
-    global relay, webcam
+class SoundDeviceAudioTrack(MediaStreamTrack):
+    kind = "audio"
 
-    if play_from:
-        # If a file name was given, play from that file.
-        player = MediaPlayer(play_from, decode=decode)
-        return player.audio, player.video
-    else:
-        # Otherwise, play from the system's default webcam.
-        #
-        # In order to serve the same webcam to multiple users we make use of
-        # a `MediaRelay`. The webcam will stay open, so it is our responsability
-        # to stop the webcam when the application shuts down in `on_shutdown`.
-        options = {"framerate": "30", "video_size": "1280x720"}
-        if relay is None:
-            if platform.system() == "Darwin":
-                webcam = MediaPlayer(
-                    "default:none", format="avfoundation", options=options
-                )
-            elif platform.system() == "Windows":
-                webcam = MediaPlayer(
-                    "video=Integrated Camera", format="dshow", options=options
-                )
+    def __init__(self, samplerate=48000, channels=1, blocksize=1024):
+        super().__init__()
+        self.samplerate = samplerate
+        self.channels = channels
+        self.blocksize = blocksize
+        self.queue = asyncio.Queue()
+        self.frame_count = 0  # Add this
+
+        self.stream = sd.InputStream(
+            samplerate=self.samplerate,
+            channels=self.channels,
+            blocksize=self.blocksize,
+            dtype='int16',
+            callback=self.audio_callback
+        )
+        self.stream.start()
+
+    def audio_callback(self, indata, frames, time, status):
+        if status:
+            if status.input_overflow:
+                # silently ignore input overflow
+                return
             else:
-                webcam = MediaPlayer("/dev/video0", format="v4l2", options=options)
-            relay = MediaRelay()
-        return None, relay.subscribe(webcam.video)
+                print("Sounddevice status:", status)
+        self.queue.put_nowait(indata.copy())
+
+    async def recv(self):
+        data = await self.queue.get()
+
+        frame = AudioFrame(format="s16", layout="mono", samples=data.shape[0])
+        for i in range(self.channels):
+            frame.planes[i].update(data[:, i].tobytes() if self.channels > 1 else data.tobytes())
+
+        frame.sample_rate = self.samplerate
+        frame.time_base = Fraction(1, self.samplerate)
+
+        # Set pts to frame count
+        frame.pts = self.frame_count
+        self.frame_count += frame.samples
+
+        return frame
 
 
-def force_codec(pc: RTCPeerConnection, sender: RTCRtpSender, forced_codec: str) -> None:
-    kind = forced_codec.split("/")[0]
-    codecs = RTCRtpSender.getCapabilities(kind).codecs
-    transceiver = next(t for t in pc.getTransceivers() if t.sender == sender)
-    transceiver.setCodecPreferences(
-        [codec for codec in codecs if codec.mimeType == forced_codec]
-    )
+def create_local_tracks():
+    global video_relay, audio_relay, webcam, mic
+
+    options = {"framerate": "30", "video_size": "1280x720"}
+
+    if video_relay is None:
+        webcam = MediaPlayer("/dev/video0", format="v4l2", options=options)
+        video_relay = MediaRelay()
+
+    if audio_relay is None:
+        mic = SoundDeviceAudioTrack(samplerate=48000, channels=1) # todo ez csere alsa
+        audio_relay = MediaRelay()
+
+    return audio_relay.subscribe(mic), video_relay.subscribe(webcam.video)
 
 
-async def index(request: web.Request) -> web.Response:
+async def index(request):
     content = open(os.path.join(ROOT, "index.html"), "r").read()
     return web.Response(content_type="text/html", text=content)
 
 
-async def javascript(request: web.Request) -> web.Response:
+async def javascript(request):
     content = open(os.path.join(ROOT, "client.js"), "r").read()
     return web.Response(content_type="application/javascript", text=content)
 
 
-async def offer(request: web.Request) -> web.Response:
+async def offer(request):
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
-    pc = RTCPeerConnection()
+    turn_server = RTCIceServer(
+        urls=["turn:10.21.40.25:3478"],  # your TURN server IP and port
+        username="turnuser",  # replace with your TURN username
+        credential="turnpassword"  # replace with your TURN password
+    )
+
+    configuration = RTCConfiguration(iceServers=[turn_server])
+    pc = RTCPeerConnection(configuration=configuration)
+
     pcs.add(pc)
 
     @pc.on("connectionstatechange")
-    async def on_connectionstatechange() -> None:
+    async def on_connectionstatechange():
         print("Connection state is %s" % pc.connectionState)
         if pc.connectionState == "failed":
             await pc.close()
             pcs.discard(pc)
 
-    # open media source
-    audio, video = create_local_tracks(
-        args.play_from, decode=not args.play_without_decoding
-    )
+    # Get tracks
+    audio, video = create_local_tracks()
 
     if audio:
-        audio_sender = pc.addTrack(audio)
-        if args.audio_codec:
-            force_codec(pc, audio_sender, args.audio_codec)
-        elif args.play_without_decoding:
-            raise Exception("You must specify the audio codec using --audio-codec")
-
+        pc.addTrack(audio)
     if video:
-        video_sender = pc.addTrack(video)
-        if args.video_codec:
-            force_codec(pc, video_sender, args.video_codec)
-        elif args.play_without_decoding:
-            raise Exception("You must specify the video codec using --video-codec")
+        pc.addTrack(video)
 
     await pc.setRemoteDescription(offer)
-
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
@@ -119,60 +145,24 @@ async def offer(request: web.Request) -> web.Response:
     )
 
 
-async def on_shutdown(app: web.Application) -> None:
-    # Close peer connections.
+async def on_shutdown(app):
     coros = [pc.close() for pc in pcs]
     await asyncio.gather(*coros)
     pcs.clear()
 
-    # If a shared webcam was opened, stop it.
     if webcam is not None:
         webcam.video.stop()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="WebRTC webcam demo")
-    parser.add_argument("--cert-file", help="SSL certificate file (for HTTPS)")
-    parser.add_argument("--key-file", help="SSL key file (for HTTPS)")
-    parser.add_argument("--play-from", help="Read the media from a file and sent it.")
-    parser.add_argument(
-        "--play-without-decoding",
-        help=(
-            "Read the media without decoding it (experimental). "
-            "For now it only works with an MPEGTS container with only H.264 video."
-        ),
-        action="store_true",
-    )
-    parser.add_argument(
-        "--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8080, help="Port for HTTP server (default: 8080)"
-    )
-    parser.add_argument("--verbose", "-v", action="count")
-    parser.add_argument(
-        "--audio-codec", help="Force a specific audio codec (e.g. audio/opus)"
-    )
-    parser.add_argument(
-        "--video-codec", help="Force a specific video codec (e.g. video/H264)"
-    )
+    logging.basicConfig(level=logging.INFO)
 
-    args = parser.parse_args()
-    
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
-
-    if args.cert_file:
-        ssl_context = ssl.SSLContext()
-        ssl_context.load_cert_chain(args.cert_file, args.key_file)
-    else:
-        ssl_context = None
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain("cert.pem", "key.pem")
 
     app = web.Application()
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/", index)
     app.router.add_get("/client.js", javascript)
     app.router.add_post("/offer", offer)
-    web.run_app(app, host=args.host, port=args.port, ssl_context=ssl_context)
+    web.run_app(app, host="0.0.0.0", port=8080, ssl_context=ssl_context)
