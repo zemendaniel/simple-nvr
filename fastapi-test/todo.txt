@@ -1,3 +1,0 @@
-auth
-spa
-motion detection and recording
