@@ -1,6 +1,6 @@
 import asyncio
 from aiortc import RTCSessionDescription, RTCConfiguration, RTCIceServer, RTCPeerConnection
-from aiortc.contrib.media import MediaPlayer, MediaRelay
+from aiortc.contrib.media import MediaPlayer, MediaRelay, MediaBlackhole
 from parse_config import conf
 
 
@@ -21,7 +21,6 @@ class MediaCapture:
                                    format="v4l2",
                                    options={'framerate': str(self.fps), 'video_size': f"{self.width}x{self.height}"})
             self.cam_relay = MediaRelay()
-
         return self.cam_relay.subscribe(self.cam.video)
     
     async def handle_offer(self, params):
