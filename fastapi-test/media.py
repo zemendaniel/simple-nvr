@@ -25,9 +25,7 @@ class MediaCapture:
             self.cam_relay = MediaRelay()
 
         if self.mic_relay is None:
-            self.mic = MediaPlayer(self.mic_url,
-                                   format="alsa",
-                                   options={'channels': '1', 'sample_rate': '44100'})
+            self.mic = MediaPlayer("hw:3,0", format="pulseaudio", options={"channels": "1", "sample_rate": "44100"})
             self.mic_relay = MediaRelay()
 
         return self.cam_relay.subscribe(self.cam.video), self.mic_relay.subscribe(self.mic.audio)
