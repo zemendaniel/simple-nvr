@@ -147,7 +147,7 @@ class MediaCapture:
         def on_track(track):
             if track.kind == "audio":
                 print("Client audio track received")
-                AudioPlaybackTrack(track)
+                #AudioPlaybackTrack(track)
 
         video, audio = self._create_tracks()
         if video:
