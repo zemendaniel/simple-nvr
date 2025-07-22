@@ -13,11 +13,45 @@ from aiortc import (
     RTCSessionDescription, RTCIceServer, RTCConfiguration,
 )
 from aiortc.contrib.media import MediaPlayer, MediaRelay
+import numpy as np
 
 ROOT = os.path.dirname(__file__)
 
 
-class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
+class AudioPlaybackTrack(MediaStreamTrack):
+    kind = "audio"
+
+    def __init__(self, track):
+        super().__init__()
+        self.track = track
+        self.queue = asyncio.Queue(maxsize=10)
+        self.stream = sd.OutputStream(
+            samplerate=48000,
+            channels=1,
+            dtype='int16',
+            blocksize=256,
+        )
+        self.stream.start()
+
+        asyncio.create_task(self._playback_loop())
+
+    async def _playback_loop(self):
+        while True:
+            frame = await self.queue.get()
+            data = frame.to_ndarray()
+            sd_data = np.asarray(data, dtype=np.int16).flatten()
+            await asyncio.to_thread(self.stream.write, sd_data)
+
+    async def recv(self):
+        frame = await self.track.recv()
+        try:
+            self.queue.put_nowait(frame)
+        except asyncio.QueueFull:
+            pass
+        return frame
+
+
+class AudioRecordTrack(MediaStreamTrack):
     kind = "audio"
 
     def __init__(self, mic_url, samplerate=48000, channels=1, blocksize=256):
@@ -86,7 +120,7 @@ class MediaCapture:
             self.cam_relay = MediaRelay()
 
         if self.mic_relay is None:
-            self.mic = AsyncSoundDeviceAudioTrack(self.mic_url)
+            self.mic = AudioRecordTrack(self.mic_url)
             self.mic_relay = MediaRelay()
 
         audio_track = self.mic_relay.subscribe(self.mic)
@@ -108,6 +142,12 @@ class MediaCapture:
             if pc.connectionState == "failed":
                 await pc.close()
                 self.pcs.discard(pc)
+
+        @pc.on("track")
+        def on_track(track):
+            if track.kind == "audio":
+                print("Client audio track received")
+                AudioPlaybackTrack(track)
 
         video, audio = self._create_tracks()
         if video:
