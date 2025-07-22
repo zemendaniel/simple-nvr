@@ -17,22 +17,10 @@ from aiortc.contrib.media import MediaPlayer, MediaRelay
 ROOT = os.path.dirname(__file__)
 
 
-def custom_host_addresses(**kwargs):
-    print("Custom get_host_addresses called with:", kwargs)
-    return ["0.0.0.0"]  # ← IP as string, not ip_address()
-
-
-pcs = set()
-video_relay = None
-audio_relay = None
-webcam = None
-mic = None
-
-
 class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
     kind = "audio"
 
-    def __init__(self, samplerate=8000, channels=1, blocksize=256):
+    def __init__(self, mic_url, samplerate=48000, channels=1, blocksize=256):
         super().__init__()
         self.samplerate = samplerate
         self.channels = channels
@@ -44,7 +32,7 @@ class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
             channels=self.channels,
             blocksize=self.blocksize,
             dtype='int16',
-            device=1,
+            device=mic_url,
         )
         self.stream.start()
         asyncio.create_task(self._produce_audio())
@@ -53,12 +41,12 @@ class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
         while True:
             data, overflow = await asyncio.to_thread(self.stream.read, self.blocksize)
             if overflow:
-                continue  # skip if overflow
+                continue
             try:
                 await self.queue.put(data.copy())
             except asyncio.QueueFull:
                 try:
-                    _ = self.queue.get_nowait()  # drop oldest
+                    _ = self.queue.get_nowait()
                     await self.queue.put(data.copy())
                 except asyncio.QueueEmpty:
                     pass
@@ -74,21 +62,78 @@ class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
         return frame
 
 
-def create_local_tracks():
-    global video_relay, audio_relay, webcam, mic
+class MediaCapture:
+    def __init__(self, cam_url, mic_url, fps=30, width=1280, height=720):
+        self.cam_url = cam_url
+        self.fps = fps
+        self.width = width
+        self.height = height
+        self.mic_url = mic_url
 
-    options = {"framerate": "30", "video_size": "1280x720"}
+        self.pcs = set()
+        self.cam_relay = None
+        self.cam = None
+        self.mic = None
+        self.mic_relay = None
 
-    if video_relay is None:
-        webcam = MediaPlayer("/dev/video0", format="v4l2", options=options)
-        video_relay = MediaRelay()
+    def _create_tracks(self):
+        if self.cam_relay is None:
+            self.cam = MediaPlayer(
+                self.cam_url,
+                format="v4l2",
+                options={"framerate": str(self.fps), "video_size": f"{self.width}x{self.height}"}
+            )
+            self.cam_relay = MediaRelay()
 
-    if audio_relay is None:
-        #mic = SoundDeviceAudioTrack(samplerate=48000, channels=1) # todo ez csere alsa
-        mic = AsyncSoundDeviceAudioTrack()
-        audio_relay = MediaRelay()
+        if self.mic_relay is None:
+            self.mic = AsyncSoundDeviceAudioTrack(self.mic_url)
+            self.mic_relay = MediaRelay()
 
-    return audio_relay.subscribe(mic), video_relay.subscribe(webcam.video)
+        audio_track = self.mic_relay.subscribe(self.mic)
+        video_track = self.cam_relay.subscribe(self.cam.video)
+
+        return video_track, audio_track
+
+    async def handle_offer(self, params):
+        offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+        config = RTCConfiguration(iceServers=[
+            RTCIceServer(urls=["turn:10.21.40.25:3478"], username="turnuser", credential="turnpassword")
+        ])
+        pc = RTCPeerConnection(configuration=config)
+        self.pcs.add(pc)
+
+        @pc.on("connectionstatechange")
+        async def on_connectionstatechange():
+            print("Connection state is", pc.connectionState)
+            if pc.connectionState == "failed":
+                await pc.close()
+                self.pcs.discard(pc)
+
+        video, audio = self._create_tracks()
+        if video:
+            pc.addTrack(video)
+        if audio:
+            pc.addTrack(audio)
+
+        await pc.setRemoteDescription(offer)
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        return pc.localDescription.sdp, pc.localDescription.type
+
+    async def shutdown(self):
+        coros = [pc.close() for pc in self.pcs]
+        await asyncio.gather(*coros)
+        self.pcs.clear()
+
+        if self.cam:
+            self.cam.video.stop()
+
+        if isinstance(self.mic, MediaPlayer) and hasattr(self.mic, "audio"):
+            self.mic.audio.stop()
+
+
+media = MediaCapture('/dev/video0', 0, 30, 1280, 720)
 
 
 async def index(request):
@@ -103,53 +148,16 @@ async def javascript(request):
 
 async def offer(request):
     params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-
-    turn_server = RTCIceServer(
-        urls=["turn:10.21.40.25:3478"],  # your TURN server IP and port
-        username="turnuser",  # replace with your TURN username
-        credential="turnpassword"  # replace with your TURN password
-    )
-
-    configuration = RTCConfiguration(iceServers=[turn_server])
-    pc = RTCPeerConnection(configuration=configuration)
-
-    pcs.add(pc)
-
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():
-        print("Connection state is %s" % pc.connectionState)
-        if pc.connectionState == "failed":
-            await pc.close()
-            pcs.discard(pc)
-
-    # Get tracks
-    audio, video = create_local_tracks()
-
-    if audio:
-        pc.addTrack(audio)
-    if video:
-        pc.addTrack(video)
-
-    await pc.setRemoteDescription(offer)
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
+    sdp, typ = await media.handle_offer(params)
 
     return web.Response(
         content_type="application/json",
-        text=json.dumps(
-            {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
-        ),
+        text=json.dumps({"sdp": sdp, "type": typ}),
     )
 
 
 async def on_shutdown(app):
-    coros = [pc.close() for pc in pcs]
-    await asyncio.gather(*coros)
-    pcs.clear()
-
-    if webcam is not None:
-        webcam.video.stop()
+    await media.shutdown()
 
 
 if __name__ == "__main__":
