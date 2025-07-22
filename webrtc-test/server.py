@@ -22,8 +22,6 @@ def custom_host_addresses(**kwargs):
     return ["0.0.0.0"]  # ← IP as string, not ip_address()
 
 
-#ice.get_host_addresses = custom_host_addresses
-
 pcs = set()
 video_relay = None
 audio_relay = None
@@ -31,49 +29,48 @@ webcam = None
 mic = None
 
 
-class SoundDeviceAudioTrack(MediaStreamTrack):
+class AsyncSoundDeviceAudioTrack(MediaStreamTrack):
     kind = "audio"
 
-    def __init__(self, samplerate=48000, channels=1, blocksize=1024):
+    def __init__(self, samplerate=8000, channels=1, blocksize=256):
         super().__init__()
         self.samplerate = samplerate
         self.channels = channels
         self.blocksize = blocksize
-        self.queue = asyncio.Queue()
-        self.frame_count = 0  # Add this
-
+        self.queue = asyncio.Queue(maxsize=10)
+        self.frame_count = 0
         self.stream = sd.InputStream(
             samplerate=self.samplerate,
             channels=self.channels,
             blocksize=self.blocksize,
             dtype='int16',
-            callback=self.audio_callback
+            device=1,
         )
         self.stream.start()
+        asyncio.create_task(self._produce_audio())
 
-    def audio_callback(self, indata, frames, time, status):
-        if status:
-            if status.input_overflow:
-                # silently ignore input overflow
-                return
-            else:
-                print("Sounddevice status:", status)
-        self.queue.put_nowait(indata.copy())
+    async def _produce_audio(self):
+        while True:
+            data, overflow = await asyncio.to_thread(self.stream.read, self.blocksize)
+            if overflow:
+                continue  # skip if overflow
+            try:
+                await self.queue.put(data.copy())
+            except asyncio.QueueFull:
+                try:
+                    _ = self.queue.get_nowait()  # drop oldest
+                    await self.queue.put(data.copy())
+                except asyncio.QueueEmpty:
+                    pass
 
     async def recv(self):
         data = await self.queue.get()
-
         frame = AudioFrame(format="s16", layout="mono", samples=data.shape[0])
-        for i in range(self.channels):
-            frame.planes[i].update(data[:, i].tobytes() if self.channels > 1 else data.tobytes())
-
+        frame.planes[0].update(data.tobytes())
         frame.sample_rate = self.samplerate
         frame.time_base = Fraction(1, self.samplerate)
-
-        # Set pts to frame count
         frame.pts = self.frame_count
         self.frame_count += frame.samples
-
         return frame
 
 
@@ -87,7 +84,8 @@ def create_local_tracks():
         video_relay = MediaRelay()
 
     if audio_relay is None:
-        mic = SoundDeviceAudioTrack(samplerate=48000, channels=1) # todo ez csere alsa
+        #mic = SoundDeviceAudioTrack(samplerate=48000, channels=1) # todo ez csere alsa
+        mic = AsyncSoundDeviceAudioTrack()
         audio_relay = MediaRelay()
 
     return audio_relay.subscribe(mic), video_relay.subscribe(webcam.video)
