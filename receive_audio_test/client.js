@@ -61,16 +61,17 @@ function start() {
     // dataChannel = pc.createDataChannel("chat");
 
 
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
-            stream.getTracks().forEach((track) => {
-                pc.addTrack(track, stream);
-            });
 
-            negotiate();
-        }).catch((err) => {
-            console.error("getUserMedia error:", err);
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
+        stream.getTracks().forEach((track) => {
+            pc.addTrack(track, stream);
         });
-    }
+
+        negotiate();
+    }).catch((err) => {
+        console.error("getUserMedia error:", err);
+    });
+}
 
 // function sendMessage() {
 //     const field = document.getElementById('input');

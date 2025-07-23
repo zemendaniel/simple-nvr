@@ -14,17 +14,16 @@ from aiortc import (
 )
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 import numpy as np
+import atexit
 
 ROOT = os.path.dirname(__file__)
 
 
-class AudioPlaybackTrack(MediaStreamTrack):
-    kind = "audio"
-
-    def __init__(self, track):
+class AudioPlaybackTrack:
+    def __init__(self):
         super().__init__()
-        self.track = track
-        self.queue = asyncio.Queue(maxsize=10)
+        self.queue = asyncio.Queue(maxsize=100)
+
         self.stream = sd.OutputStream(
             samplerate=48000,
             channels=1,
@@ -33,27 +32,32 @@ class AudioPlaybackTrack(MediaStreamTrack):
         )
         self.stream.start()
 
-        asyncio.create_task(self._playback_loop())
+    def start(self):
+        if not self.stream.active:
+            asyncio.create_task(self.playback_loop())
+            print('[AudioPlaybackTrack] Audio thread started.')
 
-    async def _playback_loop(self):
-        while True:
-            frame = await self.queue.get()
-            data = frame.to_ndarray()
-            sd_data = np.asarray(data, dtype=np.int16).flatten()
-            await asyncio.to_thread(self.stream.write, sd_data)
-
-    async def recv(self):
-        frame = await self.track.recv()
-        print(f"Received audio frame: {frame.samples} samples")
+    def receive_audio(self, frame):
         try:
             self.queue.put_nowait(frame)
         except asyncio.QueueFull:
             print("Audio queue full — dropping frame")
-        return frame
+
+    async def playback_loop(self):
+        while True:
+            frame = await self.queue.get()
+            # Convert to ndarray with signed 16-bit PCM format (common for sounddevice)
+            data = frame.to_ndarray()
+            # Flatten the array (mono)
+            sd_data = np.asarray(data, dtype=np.int16).flatten()
+            # Use a thread to avoid blocking the event loop during output write
+            await asyncio.to_thread(self.stream.write, sd_data)
+
 
 class MediaCapture:
     def __init__(self):
         self.pcs = set()
+        self.playback = AudioPlaybackTrack()
 
     async def handle_offer(self, params):
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
@@ -73,11 +77,13 @@ class MediaCapture:
         @pc.on("track")
         def on_track(track):
             if track.kind == "audio":
+                self.playback.start()
                 print("Client audio track received")
 
                 async def receive_audio():
                     while True:
                         frame = await track.recv()
+                        self.playback.receive_audio(frame)
                         print(f"Received audio frame: {frame.samples} samples")
 
                 # Start the frame receiving loop
