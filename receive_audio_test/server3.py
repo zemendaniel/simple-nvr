@@ -20,44 +20,71 @@ ROOT = os.path.dirname(__file__)
 
 
 class AudioPlaybackTrack:
-    def __init__(self):
-        super().__init__()
-        self.queue = asyncio.Queue(maxsize=100)
+    def __init__(self, track, device='hw:1,0'):
+        self.track = track
+        self.queue = asyncio.Queue(maxsize=20)
+        self.device = device
+        self.buffer = np.empty((0, 2), dtype=np.int16)
 
+        print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
         self.stream = sd.OutputStream(
             samplerate=48000,
-            channels=1,
+            channels=2,
             dtype='int16',
             blocksize=256,
+            device=self.device,
+            callback=self._callback,
         )
         self.stream.start()
+        print("[AudioPlaybackTrack] Output stream started")
 
-    def start(self):
-        if not self.stream.active:
-            asyncio.create_task(self.playback_loop())
-            print('[AudioPlaybackTrack] Audio thread started.')
+        self._task_receive = asyncio.create_task(self._receive_audio())
 
-    def receive_audio(self, frame):
-        try:
-            self.queue.put_nowait(frame)
-        except asyncio.QueueFull:
-            print("Audio queue full — dropping frame")
-
-    async def playback_loop(self):
+    async def _receive_audio(self):
+        print("[AudioPlaybackTrack] Audio receive task started")
         while True:
-            frame = await self.queue.get()
-            # Convert to ndarray with signed 16-bit PCM format (common for sounddevice)
-            data = frame.to_ndarray()
-            # Flatten the array (mono)
-            sd_data = np.asarray(data, dtype=np.int16).flatten()
-            # Use a thread to avoid blocking the event loop during output write
-            await asyncio.to_thread(self.stream.write, sd_data)
+            try:
+                frame = await self.track.recv()
+                print("[AudioPlaybackTrack] Received audio frame")
+            except MediaStreamError:
+                print("[AudioPlaybackTrack] Track ended or closed")
+                break
 
+            try:
+                self.queue.put_nowait(frame)
+                print(f"[AudioPlaybackTrack] Frame put in queue (size={self.queue.qsize()})")
+            except asyncio.QueueFull:
+                print("[AudioPlaybackTrack] Queue full, dropping frame")
+
+    def _callback(self, outdata, frames, time, status):
+        if status:
+            print(f"[AudioPlaybackTrack] Output stream status: {status}")
+
+        try:
+            while self.buffer.shape[0] < frames:
+                frame = self.queue.get_nowait()
+                raw = frame.to_ndarray()
+                data = raw.reshape(-1, 2)  # reshape to (samples, 2 channels)
+                if data.dtype != np.int16:
+                    data = (data * 32767).astype(np.int16)
+                self.buffer = np.vstack([self.buffer, data])
+                print(f"[AudioPlaybackTrack] Added {data.shape[0]} samples to buffer (buffer size={self.buffer.shape[0]})")
+
+        except asyncio.QueueEmpty:
+            print("[AudioPlaybackTrack] Queue empty, no new data to add")
+
+        if self.buffer.shape[0] >= frames:
+            outdata[:] = self.buffer[:frames]
+            self.buffer = self.buffer[frames:]
+            print(f"[AudioPlaybackTrack] Outputting {frames} frames, buffer left {self.buffer.shape[0]}")
+        else:
+            outdata.fill(0)  # not enough data, output silence
+            self.buffer = np.empty((0, 2), dtype=np.int16)
+            print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
 
 class MediaCapture:
     def __init__(self):
         self.pcs = set()
-        self.playback = AudioPlaybackTrack()
 
     async def handle_offer(self, params):
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
@@ -77,17 +104,8 @@ class MediaCapture:
         @pc.on("track")
         def on_track(track):
             if track.kind == "audio":
-                self.playback.start()
                 print("Client audio track received")
-
-                async def receive_audio():
-                    while True:
-                        frame = await track.recv()
-                        self.playback.receive_audio(frame)
-                        print(f"Received audio frame: {frame.samples} samples")
-
-                # Start the frame receiving loop
-                asyncio.create_task(receive_audio())
+                pc._track = AudioPlaybackTrack(track)  # Instantly starts receiving & playing
 
         # @pc.on("datachannel")
         # def on_datachannel(channel):
