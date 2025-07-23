@@ -1,5 +1,4 @@
 var pc = null;
-// let dataChannel = null;
 
 
 function negotiate() {
@@ -58,11 +57,13 @@ function start() {
     };
 
     pc = new RTCPeerConnection(config);
-    // dataChannel = pc.createDataChannel("chat");
 
 
-
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        }, video: false }).then((stream) => {
         stream.getTracks().forEach((track) => {
             pc.addTrack(track, stream);
         });
@@ -72,9 +73,3 @@ function start() {
         console.error("getUserMedia error:", err);
     });
 }
-
-// function sendMessage() {
-//     const field = document.getElementById('input');
-//     //dataChannel.send(field.value);
-//     field.value = '';
-// }

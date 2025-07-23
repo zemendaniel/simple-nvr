@@ -10,7 +10,7 @@ from aiohttp import web
 from aiortc import (
     MediaStreamTrack,
     RTCPeerConnection,
-    RTCSessionDescription, RTCIceServer, RTCConfiguration,
+    RTCSessionDescription, RTCIceServer, RTCConfiguration, MediaStreamError,
 )
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 import numpy as np
@@ -27,16 +27,19 @@ class AudioPlaybackTrack:
         self.buffer = np.empty((0, 2), dtype=np.int16)
 
         print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
-        self.stream = sd.OutputStream(
-            samplerate=48000,
-            channels=2,
-            dtype='int16',
-            blocksize=256,
-            device=self.device,
-            callback=self._callback,
-        )
-        self.stream.start()
-        print("[AudioPlaybackTrack] Output stream started")
+        try:
+            self.stream = sd.OutputStream(
+                samplerate=48000,
+                channels=2,
+                dtype='int16',
+                blocksize=256,
+                device=self.device,
+                callback=self._callback,
+            )
+            self.stream.start()
+        except sd.PortAudioError as e:
+            pass
+            print(f"PortAudio error opening output stream: {e}")
 
         self._task_receive = asyncio.create_task(self._receive_audio())
 
@@ -45,20 +48,22 @@ class AudioPlaybackTrack:
         while True:
             try:
                 frame = await self.track.recv()
-                print("[AudioPlaybackTrack] Received audio frame")
+                # print("[AudioPlaybackTrack] Received audio frame")
             except MediaStreamError:
-                print("[AudioPlaybackTrack] Track ended or closed")
+                # print("[AudioPlaybackTrack] Track ended or closed")
                 break
 
             try:
                 self.queue.put_nowait(frame)
-                print(f"[AudioPlaybackTrack] Frame put in queue (size={self.queue.qsize()})")
+                # print(f"[AudioPlaybackTrack] Frame put in queue (size={self.queue.qsize()})")
             except asyncio.QueueFull:
-                print("[AudioPlaybackTrack] Queue full, dropping frame")
+                pass
+                # print("[AudioPlaybackTrack] Queue full, dropping frame")
 
     def _callback(self, outdata, frames, time, status):
         if status:
-            print(f"[AudioPlaybackTrack] Output stream status: {status}")
+            pass
+            # print(f"[AudioPlaybackTrack] Output stream status: {status}")
 
         try:
             while self.buffer.shape[0] < frames:
@@ -68,19 +73,21 @@ class AudioPlaybackTrack:
                 if data.dtype != np.int16:
                     data = (data * 32767).astype(np.int16)
                 self.buffer = np.vstack([self.buffer, data])
-                print(f"[AudioPlaybackTrack] Added {data.shape[0]} samples to buffer (buffer size={self.buffer.shape[0]})")
+                # print(f"[AudioPlaybackTrack] Added {data.shape[0]} samples to buffer (buffer size={self.buffer.shape[0]})")
 
         except asyncio.QueueEmpty:
-            print("[AudioPlaybackTrack] Queue empty, no new data to add")
+            pass
+            # print("[AudioPlaybackTrack] Queue empty, no new data to add")
 
         if self.buffer.shape[0] >= frames:
             outdata[:] = self.buffer[:frames]
             self.buffer = self.buffer[frames:]
-            print(f"[AudioPlaybackTrack] Outputting {frames} frames, buffer left {self.buffer.shape[0]}")
+            # print(f"[AudioPlaybackTrack] Outputting {frames} frames, buffer left {self.buffer.shape[0]}")
         else:
             outdata.fill(0)  # not enough data, output silence
             self.buffer = np.empty((0, 2), dtype=np.int16)
-            print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
+            # print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
+
 
 class MediaCapture:
     def __init__(self):
@@ -106,14 +113,6 @@ class MediaCapture:
             if track.kind == "audio":
                 print("Client audio track received")
                 pc._track = AudioPlaybackTrack(track)  # Instantly starts receiving & playing
-
-        # @pc.on("datachannel")
-        # def on_datachannel(channel):
-        #     print(f"Data channel created: {channel.label}")
-        #
-        #     @channel.on("message")
-        #     def on_message(message):
-        #         print(f"Received message: {message}")
 
         await pc.setRemoteDescription(offer)
         answer = await pc.createAnswer()
