@@ -20,30 +20,26 @@ ROOT = os.path.dirname(__file__)
 
 
 class AudioPlaybackTrack:
-    _stream_started = False
-
     def __init__(self, track, device='hw:1,0'):
         self.track = track
         self.queue = asyncio.Queue(maxsize=20)
         self.device = device
         self.buffer = np.empty((0, 2), dtype=np.int16)
 
-        if not AudioPlaybackTrack._stream_started:
-            print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
-            try:
-                self.stream = sd.OutputStream(
-                    samplerate=48000,
-                    channels=2,
-                    dtype='int16',
-                    blocksize=256,
-                    device=self.device,
-                    callback=self._callback,
-                )
-                self.stream.start()
-                AudioPlaybackTrack._stream_started = True
-            except sd.PortAudioError as e:
-                pass
-                print(f"PortAudio error opening output stream: {e}")
+        print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
+        try:
+            self.stream = sd.OutputStream(
+                samplerate=48000,
+                channels=2,
+                dtype='int16',
+                blocksize=256,
+                device=self.device,
+                callback=self._callback,
+            )
+            self.stream.start()
+        except sd.PortAudioError as e:
+            pass
+            print(f"PortAudio error opening output stream: {e}")
 
         self._task_receive = asyncio.create_task(self._receive_audio())
 
@@ -93,15 +89,16 @@ class AudioPlaybackTrack:
             # print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
 
     async def close(self):
-        print("[AudioPlaybackTrack] Stopping output stream")
-        self.stream.stop()
-        self.stream.close()
-        AudioPlaybackTrack._stream_started = False
+        if self.stream:
+            print("[AudioPlaybackTrack] Stopping output stream")
+            self.stream.stop()
+            self.stream.close()
 
 
 class MediaCapture:
     def __init__(self):
         self.pcs = set()
+        self.playback_track = None
 
     async def handle_offer(self, params):
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
@@ -122,7 +119,9 @@ class MediaCapture:
         def on_track(track):
             if track.kind == "audio":
                 print("Client audio track received")
-                pc._track = AudioPlaybackTrack(track)  # Instantly starts receiving & playing
+                if not self.playback_track:
+                    self.playback_track = AudioPlaybackTrack(track)
+                pc._track = self.playback_track  # Instantly starts receiving & playing
 
         await pc.setRemoteDescription(offer)
         answer = await pc.createAnswer()
@@ -134,6 +133,10 @@ class MediaCapture:
         coros = [pc.close() for pc in self.pcs]
         await asyncio.gather(*coros)
         self.pcs.clear()
+
+        if self.playback_track:
+            await self.playback_track.close()
+            self.playback_track = None
 
 
 media = MediaCapture()
@@ -159,6 +162,11 @@ async def offer(request):
     )
 
 
+async def stop(request):
+    await media.shutdown()
+    return web.Response()
+
+
 async def on_shutdown(app):
     await media.shutdown()
 
@@ -174,4 +182,5 @@ if __name__ == "__main__":
     app.router.add_get("/", index)
     app.router.add_get("/client.js", javascript)
     app.router.add_post("/offer", offer)
+    app.router.add_post("/stop", stop)
     web.run_app(app, host="0.0.0.0", port=8080, ssl_context=ssl_context)

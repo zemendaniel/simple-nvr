@@ -73,3 +73,21 @@ function start() {
         console.error("getUserMedia error:", err);
     });
 }
+
+function stop() {
+    // document.getElementById('stop').style.display = 'none';
+
+    // close peer connection
+    setTimeout(() => {
+        pc.close();
+    }, 500);
+    fetch("/stop", {
+          method: "POST"
+        }).then(response => {
+          if (response.ok) {
+            console.log("Server shutdown requested");
+          } else {
+            console.error("Shutdown request failed");
+          }
+        });
+}

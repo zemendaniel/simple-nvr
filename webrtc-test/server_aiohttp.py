@@ -173,7 +173,7 @@ class MediaCapture:
             self.mic.audio.stop()
 
 
-media = MediaCapture('/dev/video0', 0, 30, 1280, 720)
+media = MediaCapture('/dev/video0', 3, 30, 1280, 720)
 
 
 async def index(request):
