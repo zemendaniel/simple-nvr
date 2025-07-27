@@ -20,26 +20,30 @@ ROOT = os.path.dirname(__file__)
 
 
 class AudioPlaybackTrack:
+    _stream_started = False
+
     def __init__(self, track, device='hw:1,0'):
         self.track = track
         self.queue = asyncio.Queue(maxsize=20)
         self.device = device
         self.buffer = np.empty((0, 2), dtype=np.int16)
 
-        print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
-        try:
-            self.stream = sd.OutputStream(
-                samplerate=48000,
-                channels=2,
-                dtype='int16',
-                blocksize=256,
-                device=self.device,
-                callback=self._callback,
-            )
-            self.stream.start()
-        except sd.PortAudioError as e:
-            pass
-            print(f"PortAudio error opening output stream: {e}")
+        if not AudioPlaybackTrack._stream_started:
+            print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
+            try:
+                self.stream = sd.OutputStream(
+                    samplerate=48000,
+                    channels=2,
+                    dtype='int16',
+                    blocksize=256,
+                    device=self.device,
+                    callback=self._callback,
+                )
+                self.stream.start()
+                AudioPlaybackTrack._stream_started = True
+            except sd.PortAudioError as e:
+                pass
+                print(f"PortAudio error opening output stream: {e}")
 
         self._task_receive = asyncio.create_task(self._receive_audio())
 
@@ -87,6 +91,12 @@ class AudioPlaybackTrack:
             outdata.fill(0)  # not enough data, output silence
             self.buffer = np.empty((0, 2), dtype=np.int16)
             # print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
+
+    async def close(self):
+        print("[AudioPlaybackTrack] Stopping output stream")
+        self.stream.stop()
+        self.stream.close()
+        AudioPlaybackTrack._stream_started = False
 
 
 class MediaCapture:
