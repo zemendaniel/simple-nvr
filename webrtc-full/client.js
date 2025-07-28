@@ -12,14 +12,24 @@ function negotiate() {
         console.log("Waiting for ICE gathering to complete...");
         return new Promise((resolve) => {
             if (pc.iceGatheringState === 'complete') {
+                console.log("ICE already complete");
                 resolve();
             } else {
+                const timeout = setTimeout(() => {
+                    pc.removeEventListener('icegatheringstatechange', checkState);
+                    resolve();
+                }, 100);
+
                 const checkState = () => {
+                    console.log(pc.iceGatheringState);
                     if (pc.iceGatheringState === 'complete') {
+                        clearTimeout(timeout);
                         pc.removeEventListener('icegatheringstatechange', checkState);
+                        console.log("ICE gathering complete");
                         resolve();
                     }
                 };
+
                 pc.addEventListener('icegatheringstatechange', checkState);
             }
         });
@@ -52,9 +62,9 @@ function start() {
     var config = {
         sdpSemantics: 'unified-plan',
         iceServers: [{
-            urls: ['turn:10.21.40.25:3478'],  // Your TURN server IP and port
-            username: 'turnuser',             // Your TURN username
-            credential: 'turnpassword'        // Your TURN password
+            urls: ['turn:10.21.40.25:3478'],
+            username: 'turnuser',
+            credential: 'turnpassword'
         }]
     };
 
