@@ -113,21 +113,31 @@ class AudioRecordTrack(MediaStreamTrack):
             device=mic_url,
         )
         self.stream.start()
-        asyncio.create_task(self._produce_audio())
+        self._produce_task = asyncio.create_task(self._produce_audio())
 
     async def _produce_audio(self):
-        while True:
-            data, overflow = await asyncio.to_thread(self.stream.read, self.blocksize)
-            if overflow:
-                continue
-            try:
-                await self.queue.put(data.copy())
-            except asyncio.QueueFull:
+        try:
+            while True:
+                if self.stream is None:
+                    print("AudioRecordTrack stream is None, stopping _produce_audio task")
+                    break
+
+                data, overflow = await asyncio.to_thread(self.stream.read, self.blocksize)
+                if overflow:
+                    continue
+
                 try:
-                    _ = self.queue.get_nowait()
                     await self.queue.put(data.copy())
-                except asyncio.QueueEmpty:
-                    pass
+                except asyncio.QueueFull:
+                    try:
+                        _ = self.queue.get_nowait()
+                        await self.queue.put(data.copy())
+                    except asyncio.QueueEmpty:
+                        pass
+        except asyncio.CancelledError:
+            print("AudioRecordTrack _produce_audio task cancelled")
+            # Cleanup if needed
+            pass
 
     async def recv(self):
         data = await self.queue.get()
@@ -140,11 +150,19 @@ class AudioRecordTrack(MediaStreamTrack):
         return frame
 
     async def close(self):
+        # Cancel the _produce_audio task and wait for it to finish
+        if self._produce_task:
+            self._produce_task.cancel()
+            try:
+                await self._produce_task
+            except asyncio.CancelledError:
+                pass
+            self._produce_task = None
+
         if self.stream:
             self.stream.stop()
             self.stream.close()
             self.stream = None
-
 
 class MediaCapture:
     def __init__(self, cam_url, fps, width, height, mic_url, playback_url):
@@ -227,9 +245,13 @@ class MediaCapture:
 
         if self.cam:
             self.cam.video.stop()
+            self.cam = None
+            self.cam_relay = None
 
         if self.mic:
             await self.mic.close()
+            self.mic = None
+            self.mic_relay = None
 
 
 media = MediaCapture('/dev/video0', 30, 1280, 720, 2, 3)
