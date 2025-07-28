@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+
+
+<script>
+function requestMicAccess() {
+  navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then((stream) => {
+      const micEvent = new CustomEvent('micAccessGranted', {
+        detail: { stream }
+      });
+      window.dispatchEvent(micEvent);
+    })
+    .catch((err) => {
+      console.error("Mic access denied:", err);
+    });
+}
+
+window.addEventListener('micAccessGranted', (event) => {
+  console.log("Custom event received! Stream:", event.detail.stream);
+});
+
+requestMicAccess();
+
+</script>
+</body>
+</html>
