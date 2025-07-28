@@ -10,45 +10,89 @@ from aiohttp import web
 from aiortc import (
     MediaStreamTrack,
     RTCPeerConnection,
-    RTCSessionDescription, RTCIceServer, RTCConfiguration,
+    RTCSessionDescription, RTCIceServer, RTCConfiguration, MediaStreamError,
 )
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 import numpy as np
+import atexit
 
 ROOT = os.path.dirname(__file__)
 
 
-class AudioPlaybackTrack(MediaStreamTrack):
-    kind = "audio"
-
-    def __init__(self, track):
-        super().__init__()
+class AudioPlaybackTrack:
+    def __init__(self, track, device=1):
         self.track = track
-        self.queue = asyncio.Queue(maxsize=10)
-        self.stream = sd.OutputStream(
-            samplerate=48000,
-            channels=1,
-            dtype='int16',
-            blocksize=256,
-        )
-        self.stream.start()
+        self.queue = asyncio.Queue(maxsize=20)
+        self.device = device
+        self.buffer = np.empty((0, 2), dtype=np.int16)
 
-        asyncio.create_task(self._playback_loop())
-
-    async def _playback_loop(self):
-        while True:
-            frame = await self.queue.get()
-            data = frame.to_ndarray()
-            sd_data = np.asarray(data, dtype=np.int16).flatten()
-            await asyncio.to_thread(self.stream.write, sd_data)
-
-    async def recv(self):
-        frame = await self.track.recv()
+        print(f"[AudioPlaybackTrack] Starting output stream on device {self.device}")
         try:
-            self.queue.put_nowait(frame)
-        except asyncio.QueueFull:
+            self.stream = sd.OutputStream(
+                samplerate=48000,
+                channels=2,
+                dtype='int16',
+                blocksize=256,
+                device=self.device,
+                callback=self._callback,
+            )
+            self.stream.start()
+        except sd.PortAudioError as e:
             pass
-        return frame
+            print(f"PortAudio error opening output stream: {e}")
+
+        self._task_receive = asyncio.create_task(self._receive_audio())
+
+    async def _receive_audio(self):
+        print("[AudioPlaybackTrack] Audio receive task started")
+        while True:
+            try:
+                frame = await self.track.recv()
+                # print("[AudioPlaybackTrack] Received audio frame")
+            except MediaStreamError:
+                # print("[AudioPlaybackTrack] Track ended or closed")
+                break
+
+            try:
+                self.queue.put_nowait(frame)
+                # print(f"[AudioPlaybackTrack] Frame put in queue (size={self.queue.qsize()})")
+            except asyncio.QueueFull:
+                pass
+                # print("[AudioPlaybackTrack] Queue full, dropping frame")
+
+    def _callback(self, outdata, frames, time, status):
+        if status:
+            pass
+            # print(f"[AudioPlaybackTrack] Output stream status: {status}")
+
+        try:
+            while self.buffer.shape[0] < frames:
+                frame = self.queue.get_nowait()
+                raw = frame.to_ndarray()
+                data = raw.reshape(-1, 2)  # reshape to (samples, 2 channels)
+                if data.dtype != np.int16:
+                    data = (data * 32767).astype(np.int16)
+                self.buffer = np.vstack([self.buffer, data])
+                # print(f"[AudioPlaybackTrack] Added {data.shape[0]} samples to buffer (buffer size={self.buffer.shape[0]})")
+
+        except asyncio.QueueEmpty:
+            pass
+            # print("[AudioPlaybackTrack] Queue empty, no new data to add")
+
+        if self.buffer.shape[0] >= frames:
+            outdata[:] = self.buffer[:frames]
+            self.buffer = self.buffer[frames:]
+            # print(f"[AudioPlaybackTrack] Outputting {frames} frames, buffer left {self.buffer.shape[0]}")
+        else:
+            outdata.fill(0)  # not enough data, output silence
+            self.buffer = np.empty((0, 2), dtype=np.int16)
+            # print(f"[AudioPlaybackTrack] Not enough data, outputting silence")
+
+    async def close(self):
+        if self.stream:
+            print("[AudioPlaybackTrack] Stopping output stream")
+            self.stream.stop()
+            self.stream.close()
 
 
 class AudioRecordTrack(MediaStreamTrack):
@@ -95,20 +139,28 @@ class AudioRecordTrack(MediaStreamTrack):
         self.frame_count += frame.samples
         return frame
 
+    async def close(self):
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
+
 
 class MediaCapture:
-    def __init__(self, cam_url, mic_url, fps=30, width=1280, height=720):
+    def __init__(self, cam_url, fps, width, height, mic_url, playback_url):
         self.cam_url = cam_url
         self.fps = fps
         self.width = width
         self.height = height
         self.mic_url = mic_url
-
+        self.playback_url = playback_url
         self.pcs = set()
+        self.playback_track = None
+
         self.cam_relay = None
         self.cam = None
-        self.mic = None
         self.mic_relay = None
+        self.mic = None
 
     def _create_tracks(self):
         if self.cam_relay is None:
@@ -127,6 +179,7 @@ class MediaCapture:
         video_track = self.cam_relay.subscribe(self.cam.video)
 
         return video_track, audio_track
+
 
     async def handle_offer(self, params):
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
@@ -147,7 +200,9 @@ class MediaCapture:
         def on_track(track):
             if track.kind == "audio":
                 print("Client audio track received")
-                #AudioPlaybackTrack(track)
+                if not self.playback_track:
+                    self.playback_track = AudioPlaybackTrack(track, self.playback_url)
+                # pc._track = self.playback_track  # Instantly starts receiving & playing
 
         video, audio = self._create_tracks()
         if video:
@@ -166,14 +221,18 @@ class MediaCapture:
         await asyncio.gather(*coros)
         self.pcs.clear()
 
+        if self.playback_track:
+            await self.playback_track.close()
+            self.playback_track = None
+
         if self.cam:
             self.cam.video.stop()
 
-        if isinstance(self.mic, MediaPlayer) and hasattr(self.mic, "audio"):
-            self.mic.audio.stop()
+        if self.mic:
+            await self.mic.close()
 
 
-media = MediaCapture('/dev/video0', 2, 30, 1280, 720)
+media = MediaCapture('/dev/video0', 30, 1280, 720, 2, 3)
 
 
 async def index(request):
@@ -196,6 +255,11 @@ async def offer(request):
     )
 
 
+async def stop(request):
+    await media.shutdown()
+    return web.Response()
+
+
 async def on_shutdown(app):
     await media.shutdown()
 
@@ -211,4 +275,5 @@ if __name__ == "__main__":
     app.router.add_get("/", index)
     app.router.add_get("/client.js", javascript)
     app.router.add_post("/offer", offer)
+    app.router.add_post("/stop", stop)
     web.run_app(app, host="0.0.0.0", port=8080, ssl_context=ssl_context)

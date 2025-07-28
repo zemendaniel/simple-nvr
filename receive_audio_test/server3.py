@@ -20,7 +20,7 @@ ROOT = os.path.dirname(__file__)
 
 
 class AudioPlaybackTrack:
-    def __init__(self, track, device='hw:1,0'):
+    def __init__(self, track, device=3):
         self.track = track
         self.queue = asyncio.Queue(maxsize=20)
         self.device = device
