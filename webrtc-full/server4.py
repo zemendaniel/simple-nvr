@@ -95,6 +95,8 @@ class AudioPlaybackTrack:
             self.stream.close()
 
 
+
+
 class AudioRecordTrack(MediaStreamTrack):
     kind = "audio"
 
@@ -268,6 +270,7 @@ async def javascript(request):
 
 
 async def offer(request):
+    await media.shutdown()
     params = await request.json()
     sdp, typ = await media.handle_offer(params)
 
