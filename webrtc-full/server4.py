@@ -93,8 +93,15 @@ class AudioPlaybackTrack:
             print("[AudioPlaybackTrack] Stopping output stream")
             self.stream.stop()
             self.stream.close()
+            self.stream = None
 
-
+        if self._task_receive:
+                self._task_receive.cancel()
+                try:
+                    await self._task_receive
+                except asyncio.CancelledError:
+                    pass
+                self._task_receive = None
 
 
 class AudioRecordTrack(MediaStreamTrack):
