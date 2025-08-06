@@ -15,12 +15,13 @@ from aiortc import (
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 import numpy as np
 import atexit
+from find_device import get_output_device_by_name, get_input_device_by_name
 
 ROOT = os.path.dirname(__file__)
 
 
 class AudioPlaybackTrack:
-    def __init__(self, track, device=1):
+    def __init__(self, track, device):
         self.track = track
         self.queue = asyncio.Queue(maxsize=20)
         self.device = device
@@ -173,14 +174,15 @@ class AudioRecordTrack(MediaStreamTrack):
             self.stream.close()
             self.stream = None
 
+
 class MediaCapture:
-    def __init__(self, cam_url, fps, width, height, mic_url, playback_url):
+    def __init__(self, cam_url, fps, width, height, mic_name, playback_name):
         self.cam_url = cam_url
         self.fps = fps
         self.width = width
         self.height = height
-        self.mic_url = mic_url
-        self.playback_url = playback_url
+        self.mic_index = get_input_device_by_name(mic_name)
+        self.playback_index = get_output_device_by_name(playback_name)
         self.pcs = set()
         self.playback_track = None
 
@@ -189,7 +191,12 @@ class MediaCapture:
         self.mic_relay = None
         self.mic = None
 
+        self.is_running = False
+
     def _create_tracks(self):
+        if self.is_running:
+            return self.cam_relay.subscribe(self.cam.video), self.mic_relay.subscribe(self.mic)
+
         if self.cam_relay is None:
             self.cam = MediaPlayer(
                 self.cam_url,
@@ -198,8 +205,10 @@ class MediaCapture:
             )
             self.cam_relay = MediaRelay()
 
+        self.is_running = True
+
         if self.mic_relay is None:
-            self.mic = AudioRecordTrack(self.mic_url)
+            self.mic = AudioRecordTrack(self.mic_index)
             self.mic_relay = MediaRelay()
 
         audio_track = self.mic_relay.subscribe(self.mic)
@@ -228,8 +237,7 @@ class MediaCapture:
             if track.kind == "audio":
                 print("Client audio track received")
                 if not self.playback_track:
-                    self.playback_track = AudioPlaybackTrack(track, self.playback_url)
-                # pc._track = self.playback_track  # Instantly starts receiving & playing
+                    self.playback_track = AudioPlaybackTrack(track, self.playback_index)
 
         video, audio = self._create_tracks()
         if video:
@@ -262,8 +270,10 @@ class MediaCapture:
             self.mic = None
             self.mic_relay = None
 
+        self.is_running = False
 
-media = MediaCapture('/dev/video0', 30, 1280, 720, 2, 3)
+
+media = MediaCapture('/dev/video0', 30, 1280, 720, 'usb audio device', 'usb')
 
 
 async def index(request):

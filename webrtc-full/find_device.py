@@ -38,10 +38,10 @@ def get_output_device_by_name(name_keyword="USB"):
             return i
     raise RuntimeError(f"No output device found matching '{name_keyword}'")
 
-try:
-    mic_index = get_input_device_by_name("proxtend")
-    speaker_index = get_output_device_by_name("usb")
-    print(f"Using mic at index {mic_index}")
-    print(f"Using speaker at index {speaker_index}")
-except RuntimeError as e:
-    print("Device error:", e)
+# try:
+#     mic_index = get_input_device_by_name("usb audio device")
+#     speaker_index = get_output_device_by_name("usb")
+#     print(f"Using mic at index {mic_index}")
+#     print(f"Using speaker at index {speaker_index}")
+# except RuntimeError as e:
+#     print("Device error:", e)
