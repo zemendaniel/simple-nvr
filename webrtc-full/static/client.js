@@ -73,7 +73,9 @@ function start() {
     // connect audio / video
     pc.addEventListener('track', (evt) => {
         if (evt.track.kind == 'video') {
-            document.getElementById('video').srcObject = evt.streams[0];
+            const video = document.getElementById('video');
+            video.style.display = 'inline-block';
+            video.srcObject = evt.streams[0];
         } else {
             document.getElementById('audio').srcObject = evt.streams[0];
         }
@@ -93,17 +95,21 @@ function start() {
 function stop() {
 
     // close peer connection
-    setTimeout(() => {
-        pc.close();
-    }, 500);
+    if (pc !== null) {
+        setTimeout(() => {
+            pc.close();
+        }, 500);
 
-    fetch("/stop", {
-          method: "POST"
-        }).then(response => {
-          if (response.ok) {
-            console.log("Server shutdown requested");
-          } else {
-            console.error("Shutdown request failed");
-          }
-        });
+
+        fetch("/stop", {
+              method: "POST"
+            }).then(response => {
+              if (response.ok) {
+                console.log("Server shutdown requested");
+              } else {
+                console.error("Shutdown request failed");
+              }
+            });
+        document.getElementById('video').style.display = 'none';
+    }
 }
